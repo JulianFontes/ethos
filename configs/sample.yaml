@@ -10,4 +10,4 @@ top_level_only: true  # drop replies (parent_id set); their parent comments aren
 # bin_edges takes precedence when both are present. bin_edges: [0, 0.3, 0.7, 1]
 bin_width: 0.25
 
-output: data/processed/sample_n100.csv   # relative to the project root
+output_dir: data/processed/sample_n100   # relative to the project root; gets sample.csv, config.yaml, figures

@@ -12,6 +12,7 @@ Usage:
 """
 
 import argparse
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -26,7 +27,7 @@ DEFAULT_CONFIG = ROOT / "configs" / "sample.yaml"
 def load_config(path):
     with open(path) as f:
         cfg = yaml.safe_load(f)
-    missing = {"n", "min_annotators", "seed", "output"} - cfg.keys()
+    missing = {"n", "min_annotators", "seed", "output_dir"} - cfg.keys()
     if missing:
         raise SystemExit(f"{path} is missing required keys: {sorted(missing)}")
     if "bin_edges" not in cfg and "bin_width" not in cfg:
@@ -50,7 +51,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG,
                         help="YAML config (default: configs/sample.yaml)")
-    cfg = load_config(parser.parse_args().config)
+    config_path = parser.parse_args().config
+    cfg = load_config(config_path)
 
     edges = make_edges(cfg)
     labels = [f"{lo:g}-{hi:g}" for lo, hi in zip(edges[:-1], edges[1:])]
@@ -88,10 +90,13 @@ def main():
         for label, k in zip(labels, per_bin)
     )
 
-    out = ROOT / cfg["output"]
-    out.parent.mkdir(parents=True, exist_ok=True)
-    sample.to_csv(out, index=False)
-    print(f"wrote {len(sample)} rows to {out.relative_to(ROOT)}")
+    # Each sample gets its own folder: the data, the config that produced it,
+    # and (later) the figures from notebooks/02_sample_overview.ipynb.
+    out_dir = ROOT / cfg["output_dir"]
+    out_dir.mkdir(parents=True, exist_ok=True)
+    sample.to_csv(out_dir / "sample.csv", index=False)
+    shutil.copy(config_path, out_dir / "config.yaml")
+    print(f"wrote {len(sample)} rows and config to {out_dir.relative_to(ROOT)}/")
 
 
 if __name__ == "__main__":
