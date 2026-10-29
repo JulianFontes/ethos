@@ -1,4 +1,4 @@
-# Sampling config for scripts/make_sample.py
+# Sampling config for scripts/extract_sample.py
 # Only test-split, deduplicated comments are used (Detoxify was trained on train).
 
 n: 100                # total sample size, split evenly across bins

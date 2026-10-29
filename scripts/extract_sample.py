@@ -7,8 +7,8 @@ toxicity, and an equal number is drawn from each bin. All settings live in a
 YAML config (see configs/sample.yaml).
 
 Usage:
-    python scripts/make_sample.py
-    python scripts/make_sample.py --config configs/my_sample.yaml
+    python scripts/extract_sample.py
+    python scripts/extract_sample.py --config configs/my_sample.yaml
 """
 
 import argparse
