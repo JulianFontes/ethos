@@ -1,0 +1,13 @@
+# Sampling config for scripts/make_sample.py
+# Only test-split, deduplicated comments are used (Detoxify was trained on train).
+
+n: 100                # total sample size, split evenly across bins
+min_annotators: 30    # minimum toxicity_annotator_count (inclusive)
+seed: 0               # random seed for a reproducible draw
+top_level_only: true  # drop replies (parent_id set); their parent comments aren't in the dataset
+
+# Toxicity bins over [0, 1], each [lo, hi). Set either bin_width or bin_edges;
+# bin_edges takes precedence when both are present. bin_edges: [0, 0.3, 0.7, 1]
+bin_width: 0.25
+
+output: data/processed/sample_n100.csv   # relative to the project root
