@@ -4,7 +4,8 @@ Only test-split comments are used, since Detoxify was trained on the train split
 Comments are deduplicated, filtered by annotator count (and optionally to
 top-level comments), binned by human
 toxicity, and an equal number is drawn from each bin. All settings live in a
-YAML config (see configs/sample.yaml).
+YAML config (see configs/sample.yaml). Overview figures (see
+ethos.plotting.sample_overview) are saved to the sample's figures/ folder.
 
 Usage:
     python scripts/extract_sample.py
@@ -18,6 +19,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import yaml
+
+from ethos.plotting.sample_overview import plot_sample
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "data" / "unprocessed" / "all_data.csv"
@@ -91,12 +94,13 @@ def main():
     )
 
     # Each sample gets its own folder: the data, the config that produced it,
-    # and (later) the figures from notebooks/02_sample_overview.ipynb.
+    # and the overview figures.
     out_dir = ROOT / cfg["output_dir"]
     out_dir.mkdir(parents=True, exist_ok=True)
     sample.to_csv(out_dir / "sample.csv", index=False)
     shutil.copy(config_path, out_dir / "config.yaml")
-    print(f"wrote {len(sample)} rows and config to {out_dir.relative_to(ROOT)}/")
+    plot_sample(sample, labels, cfg, out_dir / "figures")
+    print(f"wrote {len(sample)} rows, config, and figures to {out_dir.relative_to(ROOT)}/")
 
 
 if __name__ == "__main__":
