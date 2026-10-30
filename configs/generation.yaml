@@ -1,0 +1,10 @@
+# Generation config for scripts/generate_variations.py
+
+model: ministral-3:8b                      # must be pulled first: `ollama pull <model>`
+base_url: http://localhost:11434/v1        # Ollama's OpenAI-compatible endpoint
+temperature: 0.5
+max_tokens: 600
+retries: 2                                 # extra attempts when a variation alters the original text
+
+input: data/processed/sample_n100/sample.csv           # relative to the project root
+output: data/processed/sample_n100/variations.csv      # config is copied next to it

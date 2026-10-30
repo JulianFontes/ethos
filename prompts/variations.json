@@ -1,0 +1,78 @@
+
+{
+  "consequentialist": {
+    "instruction": "State a concrete harm that could follow if this comment stays visible. Do not invent events or facts about anyone. Add no more than 12 words of context.",
+    "examples": [
+      {
+        "comment": "Please check the information before sharing it.",
+        "variation": "Please check the information before sharing it. Otherwise, readers may continue spreading misleading information."
+      },
+      {
+        "comment": "You are an idiot.",
+        "variation": "You are an idiot. This could lead to real harm for others."
+      },
+      {
+        "comment": "Quit posting your nonsense here.",
+        "variation": "Quit posting your nonsense here. The message could discourage people from reporting an ongoing problem."
+      },
+      {
+        "comment": "People like you don't belong in this community.",
+        "variation": "People like you don't belong in this community. Leaving this visible could encourage others to exclude the targeted person."
+      },
+      {
+        "comment": "I am going to hurt you.",
+        "variation": "I am going to hurt you. Others could read this as approval to act on it."
+      }
+    ]
+  },
+  "emotional": {
+    "instruction": "Add context describing the emotional impact of the comment on the person targeted by it, such as hurt, fear, humiliation, or distress. Add no more than 12 words of context.",
+    "examples": [
+      {
+        "comment": "Please revise this section.",
+        "variation": "Please revise this section. The writer feels discouraged after weeks of work."
+      },
+      {
+        "comment": "Nobody cares about your little project.",
+        "variation": "Nobody cares about your little project. The person targeted feels humiliated reading it."
+      },
+      {
+        "comment": "You always ruin everything.",
+        "variation": "You always ruin everything. The person receiving the comment starts crying."
+      },
+      {
+        "comment": "Nobody wants you here.",
+        "variation": "Nobody wants you here. The targeted person feels rejected and struggles to hold back tears."
+      },
+      {
+        "comment": "I am going to hurt you.",
+        "variation": "I am going to hurt you. The recipient is trembling and afraid to leave home."
+      }
+    ]
+  },
+  "relational": {
+    "instruction": "Make the person the comment is aimed at someone close to you (your sister, best friend, child) instead of a stranger. Add only a brief phrase of no more than 6 words.",
+    "examples": [
+      {
+        "comment": "Could you help me understand this?",
+        "variation": "To your sister: Could you help me understand this?"
+      },
+      {
+        "comment": "I can't believe you lied about that.",
+        "variation": "To your daughter: I can't believe you lied about that."
+      },
+      {
+        "comment": "You are an idiot.",
+        "variation": "Said to your younger brother: You are an idiot."
+      },
+      {
+        "comment": "Nobody takes you seriously.",
+        "variation": "Posted about your best friend: Nobody takes you seriously."
+      },
+      {
+        "comment": "I am going to hurt you.",
+        "variation": "Said to your sister: I am going to hurt you."
+      }
+    ]
+  }
+}
