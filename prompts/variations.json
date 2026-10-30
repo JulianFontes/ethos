@@ -1,7 +1,7 @@
 
 {
   "consequentialist": {
-    "instruction": "State a concrete harm that could follow if this comment stays visible. Do not invent events or facts about anyone. Add no more than 12 words of context.",
+    "instruction": "State a concrete harm that could follow if this comment stays visible. Do not invent events or facts about anyone.",
     "examples": [
       {
         "comment": "Please check the information before sharing it.",
@@ -26,7 +26,7 @@
     ]
   },
   "emotional": {
-    "instruction": "Add context describing the emotional impact of the comment on the person targeted by it, such as hurt, fear, humiliation, or distress. Add no more than 12 words of context.",
+    "instruction": "Add context describing the emotional impact of the comment on the person targeted by it, such as hurt, fear, humiliation, or distress.",
     "examples": [
       {
         "comment": "Please revise this section.",
@@ -51,7 +51,7 @@
     ]
   },
   "relational": {
-    "instruction": "Make the person the comment is aimed at someone close to you (your sister, best friend, child) instead of a stranger. Add only a brief phrase of no more than 6 words.",
+    "instruction": "Make the person the comment is aimed at someone close to you (your sister, best friend, child) instead of a stranger. Add only a brief phrase.",
     "examples": [
       {
         "comment": "Could you help me understand this?",

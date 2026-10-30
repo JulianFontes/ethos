@@ -29,11 +29,15 @@ KEYS = ["consequentialist", "emotional", "relational"]
 COLUMNS = (["id", "comment_text", "model", "valid"] + KEYS
            + [f"added_words_{k}" for k in KEYS] + ["error"])
 
-# One call per variation type; the output is a single string.
+# One call per variation type. The model writes only the added context and where it goes;
+# the script attaches it to the untouched original comment.
 SCHEMA = {
     "type": "object",
-    "properties": {"text": {"type": "string"}},
-    "required": ["text"],
+    "properties": {
+        "position": {"type": "string", "enum": ["before", "after"]},
+        "context": {"type": "string"},
+    },
+    "required": ["position", "context"],
     "additionalProperties": False,
 }
 
@@ -45,10 +49,22 @@ DEFAULT_CONFIG = ROOT / "configs" / "generation.yaml"
 def load_config(path):
     with open(path) as f:
         cfg = yaml.safe_load(f)
-    missing = {"model", "input", "output"} - cfg.keys()
+    missing = {"model", "input", "output", "max_added_words"} - cfg.keys()
     if missing:
         raise SystemExit(f"{path} is missing required keys: {sorted(missing)}")
+    missing = [k for k in KEYS if k not in cfg["max_added_words"]]
+    if missing:
+        raise SystemExit(f"{path}: max_added_words is missing {missing}")
     return cfg
+
+
+def split_example(comment, variation):
+    """Turn a full example variation into (position, context) by locating the comment in it."""
+    if variation.startswith(comment):
+        return "after", variation[len(comment):].strip()
+    if variation.endswith(comment):
+        return "before", variation[:-len(comment)].strip()
+    raise ValueError(f"example variation must start or end with its comment: {variation!r}")
 
 
 def format_type_prompt(kind, spec):
@@ -56,7 +72,9 @@ def format_type_prompt(kind, spec):
     lines = [f"Variation type: {kind}", spec["instruction"], "",
              "Examples (for format and length only; write new context, do not reuse their wording):"]
     for ex in spec.get("examples", []):
-        lines += [f"Comment: {ex['comment']}", f"Variation: {ex['variation']}", ""]
+        position, context = split_example(ex["comment"], ex["variation"])
+        output = json.dumps({"position": position, "context": context}, ensure_ascii=False)
+        lines += [f"Comment: {ex['comment']}", f"Output: {output}", ""]
     return "\n".join(lines).strip()
 
 
@@ -74,24 +92,36 @@ def load_prompts():
 SYSTEM, INSTRUCTIONS = load_prompts()
 
 
-def keeps_original(variant, original):
-    """True if the original comment text appears verbatim (ignoring case, spacing, trailing punctuation)."""
+def usable_context(context, comment, max_words):
+    """False if the context is empty, too long, or copies the start of the comment."""
     norm = lambda t: re.sub(r"\s+", " ", t).strip().lower()
-    core = norm(original).rstrip(".!?…\"' ")
-    return bool(core) and core in norm(variant)
+    return (bool(norm(context)) and len(context.split()) <= max_words
+            and norm(comment)[:40] not in norm(context))
+
+
+def check_examples(max_added_words):
+    """Stop early if a prompt example breaks its own type's word limit."""
+    specs = json.loads((PROMPT_DIR / "variations.json").read_text())
+    for kind in KEYS:
+        for ex in specs[kind].get("examples", []):
+            _, context = split_example(ex["comment"], ex["variation"])
+            if len(context.split()) > max_added_words[kind]:
+                raise SystemExit(f"{kind} example exceeds {max_added_words[kind]} words: {context!r}")
 
 
 def generate_one(client, cfg, comment, kind):
-    """One variation of one type. Returns (text, valid). Retries if the original text was altered."""
-    system = SYSTEM + "\n\n" + INSTRUCTIONS[kind]
-    text = ""
+    """One variation of one type. Returns (text, context, valid); retries unusable context."""
+    max_words = cfg["max_added_words"][kind]
+    system = f"{SYSTEM}\n\n{INSTRUCTIONS[kind]}\n\nWord limit: the context must be at most {max_words} words."
+    position, context = "before", ""
     for _ in range(cfg.get("retries", 2) + 1):
         out = chat_json(client, cfg["model"], system, f"Comment:\n{comment}", SCHEMA,
                         temperature=cfg.get("temperature", 0.5), max_tokens=cfg.get("max_tokens", 600))
-        text = out.get("text", "")
-        if keeps_original(text, comment):
-            return text, True
-    return text, False
+        position, context = out.get("position", "before"), out.get("context", "").strip()
+        if usable_context(context, comment, max_words):
+            break
+    text = f"{context} {comment}" if position == "before" else f"{comment} {context}"
+    return text, context, usable_context(context, comment, max_words)
 
 
 def main():
@@ -101,6 +131,7 @@ def main():
     p.add_argument("--limit", type=int, default=None, help="only process the first N comments")
     args = p.parse_args()
     cfg = load_config(args.config)
+    check_examples(cfg["max_added_words"])
     model = cfg["model"]
 
     # Fail fast if Ollama is down or the model isn't pulled, before touching any files.
@@ -139,9 +170,9 @@ def main():
             errors = {}
             for kind in KEYS:
                 try:
-                    text, ok = generate_one(client, cfg, row.comment_text, kind)
+                    text, context, ok = generate_one(client, cfg, row.comment_text, kind)
                     rec[kind] = text
-                    rec[f"added_words_{kind}"] = len(text.split()) - len(row.comment_text.split())
+                    rec[f"added_words_{kind}"] = len(context.split())
                     rec["valid"] = rec["valid"] and ok
                 except Exception as e:  # network error, refusal, bad JSON
                     rec[kind], rec["valid"] = "", False
@@ -149,7 +180,7 @@ def main():
             rec["error"] = "; ".join(f"{k}: {v}" for k, v in errors.items())
             writer.writerow(rec)
             f.flush()
-            n_valid += rec["valid"]
+            n_valid += bool(rec["valid"])
             n_errors += bool(errors)
             bar.set_postfix(valid=n_valid, errors=n_errors)
 
