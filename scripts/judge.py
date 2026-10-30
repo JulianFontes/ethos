@@ -14,7 +14,7 @@ import argparse
 from pathlib import Path
 
 from ethos.judges import run_judge
-from ethos.judges.core import ROOT, add_human_labels, load_config, load_judges, output_path, save_config
+from ethos.judges.core import ROOT, load_config, load_judges, output_path, save_config
 
 
 def main():
@@ -35,9 +35,6 @@ def main():
     save_config(args.config, sample_dir)
     for cfg in judges:
         run_judge(cfg, sample_dir, args.limit)
-    # same threshold as the `human` judge, so human_decision always matches its decision
-    human = next((c for c in load_judges(args.config) if c["type"] == "human"), {})
-    add_human_labels(sample_dir, human.get("threshold", 0.5))
     print(f"judgements: {output_path(sample_dir)}")
 
 

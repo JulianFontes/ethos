@@ -1,11 +1,10 @@
 """Shared helpers for all judges.
 
 Every judge writes rows to one long CSV, data/judgements/<sample>/judgements.csv:
-    id, version, text, human_toxicity, human_decision, judge, score, decision, rationale, profile
-`version` is "original" or one of the variation types; `human_toxicity` / `human_decision` are the
-human score and its thresholded allow/remove, set on original-comment rows only (add_human_labels;
-variations have no human label); `judge` is the name from its config; `profile` is the value
-profile a pluralistic judge was given (empty for other judges).
+    id, version, text, judge, score, decision, rationale, profile
+`version` is "original" or one of the variation types; `judge` is the judge's name from its config
+(the human annotations are the `human` judge's rows, originals only); `profile` is the value profile
+a pluralistic judge was given (empty for other judges).
 """
 import csv
 import shutil
@@ -16,8 +15,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
 VERSIONS = ["original", "consequentialist", "emotional", "relational"]
-COLUMNS = ["id", "version", "text", "human_toxicity", "human_decision",
-           "judge", "score", "decision", "rationale", "profile"]
+COLUMNS = ["id", "version", "text", "judge", "score", "decision", "rationale", "profile"]
 
 
 def load_config(path):
@@ -76,24 +74,6 @@ def append_rows(path, rows):
         if new_file:
             writer.writeheader()
         writer.writerows(rows)
-
-
-def add_human_labels(sample_dir, threshold=0.5):
-    """Fill `human_toxicity` and `human_decision` on original-comment rows from sample.csv.
-
-    human_decision is "remove" when human_toxicity >= threshold, else "allow". Humans only labeled
-    the originals; variation rows stay empty (no human label exists for them).
-    """
-    path = output_path(sample_dir)
-    if not path.exists():
-        return
-    rows = pd.read_csv(path).reindex(columns=COLUMNS)
-    scores = pd.read_csv(ROOT / sample_dir / "sample.csv", usecols=["id", "toxicity"]).set_index("id").toxicity
-    original = rows.version == "original"
-    rows["human_toxicity"] = rows.id.map(scores).round(4).where(original)
-    decision = rows.human_toxicity.ge(threshold).map({True: "remove", False: "allow"})
-    rows["human_decision"] = decision.where(original)
-    rows.to_csv(path, index=False)
 
 
 def save_config(config_path, sample_dir):
