@@ -9,6 +9,8 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."   # project root (this script lives in scripts/shell/)
+# Find the ethos package directly; iCloud can hide the .venv's .pth files, which breaks `import ethos`.
+export PYTHONPATH="$PWD/src${PYTHONPATH:+:$PYTHONPATH}"
 PYTHON=.venv/bin/python
 
 echo "Generating variations ..."

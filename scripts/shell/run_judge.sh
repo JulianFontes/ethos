@@ -8,7 +8,8 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."   # project root (this script lives in scripts/shell/)
-PYTHON=.venv/bin/python
+# Find the ethos package directly; iCloud can hide the .venv's .pth files, which breaks `import ethos`.
+export PYTHONPATH="$PWD/src${PYTHONPATH:+:$PYTHONPATH}"
 
 echo "Running judges ..."
-"$PYTHON" scripts/judge.py "$@"
+uv run python scripts/judge.py "$@"
