@@ -331,7 +331,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "detoxify", specifier = ">=0.5.4" },
+    { name = "detoxify" },
     { name = "matplotlib" },
     { name = "openai" },
     { name = "pandas" },

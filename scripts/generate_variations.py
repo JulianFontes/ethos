@@ -21,7 +21,7 @@ import pandas as pd
 import yaml
 from tqdm import tqdm
 
-from ethos.llm.mistral_client import DEFAULT_BASE_URL, chat_json, get_client
+from ethos.llm.ollama_client import DEFAULT_BASE_URL, chat_json, get_client
 
 KEYS = ["consequentialist", "emotional", "relational"]
 

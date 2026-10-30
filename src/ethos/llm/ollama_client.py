@@ -1,7 +1,7 @@
-"""Thin wrapper to reach a local Mistral model through Ollama's OpenAI-compatible endpoint.
+"""Thin wrapper to reach any local model through Ollama's OpenAI-compatible endpoint.
 
-Setup: `ollama pull ministral-<model-version>` (Ollama must be running). The model and
-server are chosen by the caller, e.g. from configs/generation.yaml.
+Setup: `ollama pull <model>` (Ollama must be running). The model and server are chosen
+by the caller, e.g. from configs/generation.yaml or configs/judges.yaml.
 """
 import json
 
@@ -25,19 +25,31 @@ def get_client(model, base_url=DEFAULT_BASE_URL):
     return client
 
 
-def chat_json(client, model, system, user, schema, temperature=0.5, max_tokens=600):
-    """One chat call that must return JSON matching `schema`. Returns a dict."""
+def chat_json(client, model, system, user, schema, temperature=None, max_tokens=None,
+              reasoning_effort=None):
+    """One chat call that must return JSON matching `schema`. Returns a dict.
+
+    temperature / max_tokens / reasoning_effort are only sent when given; otherwise the
+    model's defaults apply. reasoning_effort="none" turns off thinking for models like Qwen3
+    (Ollama's OpenAI endpoint ignores `think`, but honors this).
+    """
+    kwargs = {}
+    if temperature is not None:
+        kwargs["temperature"] = temperature
+    if max_tokens is not None:
+        kwargs["max_tokens"] = max_tokens
+    if reasoning_effort is not None:
+        kwargs["extra_body"] = {"reasoning_effort": reasoning_effort}
     resp = client.chat.completions.create(
         model=model,
         messages=[
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
-        temperature=temperature,
-        max_tokens=max_tokens,
         response_format={
             "type": "json_schema",
             "json_schema": {"name": "output", "schema": schema, "strict": True},
         },
+        **kwargs,
     )
     return json.loads(resp.choices[0].message.content)

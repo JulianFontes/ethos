@@ -1,0 +1,41 @@
+# Every judge, run in order by scripts/judge.py. Each `name` is the value written to the
+# `judge` column; `type` picks the implementation (human, detoxify, ollama, ollama_dmp).
+
+# Sample to judge: reads variations.csv (originals + variations) and sample.csv (human labels) from here and writes
+# data/judgements/<folder name>/judgements.csv (e.g. data/judgements/sample_n100/).
+sample_dir: data/processed/sample_n100
+
+# Settings shared by the LLM judges; a judge's own settings override them.
+llm_defaults:
+  base_url: http://localhost:11434/v1        # Ollama's OpenAI-compatible endpoint
+  # reasoning_effort: none                     # thinking off for every LLM (remove for model defaults)
+  # temperature / max_tokens: left out = the model's own defaults
+
+judges:
+  # Human annotations from Civil Comments (original comments only; variations have no human labels).
+  - name: human
+    type: human
+    threshold: 0.5                           # share of annotators rating it toxic >= threshold -> "remove"
+
+  # Toxicity classifier baseline.
+  - name: detoxify
+    type: detoxify
+    checkpoint: unbiased                     # trained on the Civil Comments train split; our sample is test-only
+    threshold: 0.5                           # toxicity >= threshold -> "remove"
+
+  # Base LLM: no value conditioning.
+  - name: qwen3:8b-base
+    type: ollama
+    model: qwen3:8b                          # must be pulled first: `ollama pull qwen3:8b`
+    prompt: prompts/judge_base.txt
+
+  # Pluralistic LLM: Dynamic Moral Profiling. Profiles come from a uniform prior over the
+  # value taxonomy for now (see ethos/llm/dmp.py): p ~ Dirichlet(alpha * uniform), keep top_k.
+  - name: qwen3:8b-dmp
+    type: ollama_dmp
+    model: qwen3:8b
+    prompt: prompts/judge_pluralistic.txt    # {profile} is filled in per comment
+    values: prompts/taxonomy-values.txt
+    alpha: 10                                # the paper's best setting
+    top_k: 3                                 # the paper's profile size
+    seed: 0                                  # combined with each comment's id
