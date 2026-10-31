@@ -10,6 +10,8 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."   # project root (this script lives in scripts/shell/)
 # Find the ethos package directly; iCloud can hide the .venv's .pth files, which breaks `import ethos`.
 export PYTHONPATH="$PWD/src${PYTHONPATH:+:$PYTHONPATH}"
+# API keys (e.g. OPENAI_API_KEY for OpenAI judges) from .env, if present.
+if [[ -f .env ]]; then set -a; source .env; set +a; fi
 
 echo "Running judges ..."
 uv run python scripts/judge.py "$@"

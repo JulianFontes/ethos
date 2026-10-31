@@ -5,7 +5,8 @@ Each judge is an entry in configs/judges.yaml; its `type` picks the implementati
 from ethos.judges import detoxify_judge, human_judge, llm_judge, pluralistic_judge
 
 RUNNERS = {"human": human_judge.run, "detoxify": detoxify_judge.run,
-           "ollama": llm_judge.run, "ollama_dmp": pluralistic_judge.run}
+           "ollama": llm_judge.run, "ollama_dmp": pluralistic_judge.run,
+           "openai": llm_judge.run, "openai_dmp": pluralistic_judge.run}
 
 
 def run_judge(cfg, sample_dir, limit=None):

@@ -65,7 +65,9 @@ def plot_alignment(o, judges, bins, fig_dir, threshold=0.5):
 
         # One panel per human-toxicity bin, stacked vertically
         per_bin = o.groupby("toxicity_bin").id.nunique().max()
-        fig, axes = plt.subplots(len(bins), 1, figsize=(9, (0.45 * len(judges) + 0.6) * len(bins)), sharex=True)
+        fig, axes = plt.subplots(len(bins), 1, figsize=(9, (0.45 * len(judges) + 0.6) * len(bins)), sharex=True,
+                                 squeeze=False)
+        axes = axes[:, 0]   # always an array, even for a single bin
         for ax, b in zip(np.atleast_1d(axes), bins):
             sub = o[o.toxicity_bin == b]
             _bars(ax, sub.groupby(["judge", "decision"]).size().unstack(fill_value=0), judges, per_bin, human_line=False)
@@ -95,9 +97,13 @@ def plot_removal_gap(o, judges, bins, path):
     ax.grid(True, axis="both")   # x ticks sit on the bin edges, so the grid marks the bins
     ax.axhline(0, color=INK, lw=1.2, ls=":", zorder=2,
                label="0% = same as humans (above: model removes more; below: removes less)")
+    # A DMP judge shares its base model's color, drawn dashed (e.g. qwen3:8b-base solid, qwen3:8b-dmp dashed).
+    models = list(dict.fromkeys(j.removesuffix("-dmp").removesuffix("-base") for j in judges))
     for k, judge in enumerate(judges):
         last = k == len(judges) - 1 and len(judges) > 1   # smaller markers so an overlapping line shows through
-        ax.plot(centers, removed.loc[judge] - removed.loc["human"], color=JUDGE_COLORS[k % len(JUDGE_COLORS)],
+        model = judge.removesuffix("-dmp").removesuffix("-base")
+        ax.plot(centers, removed.loc[judge] - removed.loc["human"],
+                color=JUDGE_COLORS[models.index(model) % len(JUDGE_COLORS)], ls="--" if judge.endswith("-dmp") else "-",
                 lw=2, marker="o", ms=5 if last else 7, mec=SURFACE, mew=1.5, label=judge, zorder=3)
     for c, k in zip(centers, counts):
         ax.text(c, 1.1, f"n={k}", ha="center", va="center", fontsize=8.5, color=INK2)
@@ -109,7 +115,7 @@ def plot_removal_gap(o, judges, bins, path):
     ax.set_ylabel("Difference in % of comments removed\n(model − human)")
     h, l = ax.get_legend_handles_labels()   # judges on one row, the 0% line on its own row below
     ax.add_artist(ax.legend(h[1:], l[1:], loc="upper center", bbox_to_anchor=(0.5, -0.2),
-                            ncols=len(judges), labelcolor=INK2, fontsize=9))
+                            ncols=len(judges), labelcolor=INK2, fontsize=9, handlelength=3.5))
     ax.legend(h[:1], l[:1], loc="upper center", bbox_to_anchor=(0.5, -0.29), labelcolor=INK2, fontsize=9)
     title(ax, "Gap between model and human removals",
           f"{o.id.nunique()} Original Comments; n = comments per bin")

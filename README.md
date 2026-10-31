@@ -28,10 +28,12 @@ Each step copies its config into the output folder (`log/`) for reproducibility.
 ## Setup
 
 ```bash
-uv sync                                   # Python 3.14 deps into .venv
-ollama pull ministral-3:8b                # variation generator
-ollama pull qwen3:8b                      # LLM judges
+./setup.sh
 ```
+
+Needs [uv](https://docs.astral.sh/uv/) and [Ollama](https://ollama.com/download) installed and running.
+Runs `uv sync`, creates `.env` from `.env.example`, passes `OLLAMA_NUM_PARALLEL` to Ollama (restart Ollama
+after changing it), and pulls the models. Add `OPENAI_API_KEY` to `.env` for the OpenAI judges.
 
 Raw data: Kaggle *Jigsaw Unintended Bias in Toxicity Classification*, `all_data.csv` in `data/unprocessed/` (`data/` is git-ignored).
 

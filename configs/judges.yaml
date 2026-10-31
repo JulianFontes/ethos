@@ -39,3 +39,18 @@ judges:
     alpha: 10                                # the paper's best setting
     top_k: 3                                 # the paper's profile size
     seed: 0                                  # combined with each comment's id
+
+  # OpenAI API (needs OPENAI_API_KEY in .env).
+  - name: gpt-6-luna-base
+    type: openai
+    model: gpt-6-luna
+    prompt: prompts/judge_base.txt
+
+  - name: gpt-6-luna-dmp
+    type: openai_dmp
+    model: gpt-6-luna
+    prompt: prompts/judge_pluralistic.txt
+    values: prompts/taxonomy-values.txt
+    alpha: 10
+    top_k: 3
+    seed: 0

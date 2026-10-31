@@ -20,8 +20,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def alignment_table(o):
     """Remove rate and agreement with the human decision, per judge and bin."""
-    human = o[o.judge == "human"].set_index("id").decision
-    o = o.assign(agree=o.decision.values == human.reindex(o.id).values)
+    human = o[o.judge == "human"].set_index("id").decision.reindex(o.id).values
+    o = o.assign(agree=pd.Series(o.decision.values == human, index=o.index).where(pd.notna(human)))  # NaN: no human label
     rows = []
     for b, sub in [("all", o), *o.groupby("toxicity_bin")]:
         for judge, g in sub.groupby("judge", sort=False):

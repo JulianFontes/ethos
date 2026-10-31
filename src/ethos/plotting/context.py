@@ -16,7 +16,8 @@ def plot_decision_counts(j, judges, versions, path):
     """Allow/remove split per version as horizontal stacked bars, one panel per judge. A dashed line marks the
     original's split; context rows note their change in remove count vs. the original."""
     n = j.id.nunique()
-    fig, axes = plt.subplots(len(judges), 1, figsize=(9, 2.5 * len(judges)), sharex=True)
+    fig, axes = plt.subplots(len(judges), 1, figsize=(9, 2.5 * len(judges)), sharex=True, squeeze=False)
+    axes = axes[:, 0]   # always an array, even for a single judge
     y = np.arange(len(versions))
     colors = [VERSION_COLORS[v] for v in versions]
     for ax, judge in zip(np.atleast_1d(axes), judges):
