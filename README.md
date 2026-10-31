@@ -23,8 +23,8 @@ moderation decisions for Civil Comments, including contextual variations of each
 - **Judges** (one row per judge per comment version in `judgements.csv`):
   - `human`: Civil Comments annotations (originals only); `score` = share of annotators rating it toxic, `decision` = remove if ≥ 0.5
   - `detoxify`: Detoxify `unbiased`, remove if score ≥ 0.5
-  - `qwen3:8b-base`: base LLM, allow/remove + rationale
-  - `qwen3:8b-dmp`: pluralistic LLM, conditioned on a sampled value profile (60-value taxonomy, *The Pluralistic Moral Gap*); the profile is in the `profile` column
+  - `<model>-base`: base LLM, allow/remove + rationale
+  - `<model>-dmp`: pluralistic LLM, conditioned on a sampled value profile (60-value taxonomy, *The Pluralistic Moral Gap*); the profile is in the `profile` column
   - `gpt-6-luna-base` / `gpt-6-luna-dmp`: the same base and pluralistic judges on OpenAI's `gpt-6-luna` (needs `OPENAI_API_KEY` in `.env`)
 
 Each step copies its config into the output folder (`log/`) for reproducibility. Re-running a step resumes where it stopped.
