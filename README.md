@@ -11,6 +11,7 @@ moderation decisions for Civil Comments, including contextual variations of each
 | 1. Sample comments | `scripts/extract_sample.py` | `configs/sample.yaml` | `processed/sample_n100/sample.csv` + `figures/` |
 | 2. Generate variations | `scripts/shell/run_generate_variations.sh` | `configs/generation.yaml` | `processed/sample_n100/variations.csv` |
 | 3. Judge | `scripts/shell/run_judge.sh` | `configs/judges.yaml` | `judgements/sample_n100/judgements.csv` |
+| 4. Evaluate | `scripts/shell/run_eval.sh` | `configs/judges.yaml` | `judgements/sample_n100/eval/` |
 
 - **Sample:** 100 top-level, deduplicated Civil Comments **test-split** comments (Detoxify was trained on train)
   with ≥30 annotators, 25 per human-toxicity bin (0–0.25, 0.25–0.5, 0.5–0.75, 0.75–1).
@@ -42,8 +43,8 @@ Raw data: Kaggle *Jigsaw Unintended Bias in Toxicity Classification*, `all_data.
 3. **Generate variations:** set the model and word limits in `configs/generation.yaml`, then run
    `scripts/shell/run_generate_variations.sh`.
 4. **Judge:** set `sample_dir` and the judges in `configs/judges.yaml`, then run `scripts/shell/run_judge.sh`.
-5. **Analyze** `data/judgements/<sample>/judgements.csv`: compare each judge's `decision` with `human` on the
-   originals, and across versions to see how sensitive it is to context.
+5. **Evaluate:** run `scripts/shell/run_eval.sh` for human alignment and context sensitivity
+   (figures and CSVs in `data/judgements/<sample>/eval/`).
 
 Add `--limit 3` to steps 3–4 for a quick test, or `--only <judge name>` to step 4 to run a single judge.
 A stopped step picks up where it left off when you run it again. Thinking is off (`reasoning_effort: none`), so
