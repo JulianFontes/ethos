@@ -4,6 +4,9 @@ Proof-of-concept pipeline for **Exploring Pluralistic LLMs for Social Impact Dec
 It compares a toxicity classifier, a base LLM, and a pluralistic LLM (Dynamic Moral Profiling) on content
 moderation decisions for Civil Comments, including contextual variations of each comment.
 
+> **Content warning:** the judge prompts (`prompts/judge_*.txt`) include example comments that may be offensive or
+> sensitive, and the Civil Comments data contains toxic language.
+
 ## Pipeline
 
 | Step | Script | Config | Output (`data/`) |
@@ -22,6 +25,7 @@ moderation decisions for Civil Comments, including contextual variations of each
   - `detoxify`: Detoxify `unbiased`, remove if score ≥ 0.5
   - `qwen3:8b-base`: base LLM, allow/remove + rationale
   - `qwen3:8b-dmp`: pluralistic LLM, conditioned on a sampled value profile (60-value taxonomy, *The Pluralistic Moral Gap*); the profile is in the `profile` column
+  - `gpt-6-luna-base` / `gpt-6-luna-dmp`: the same base and pluralistic judges on OpenAI's `gpt-6-luna` (needs `OPENAI_API_KEY` in `.env`)
 
 Each step copies its config into the output folder (`log/`) for reproducibility. Re-running a step resumes where it stopped.
 
@@ -52,12 +56,26 @@ Add `--limit 3` to steps 3–4 for a quick test, or `--only <judge name>` to ste
 A stopped step picks up where it left off when you run it again. Thinking is off (`reasoning_effort: none`), so
 each LLM judge takes about 15–20 min for 400 texts. Remove that line to get rationales with thinking, which takes about 2 h per judge.
 
+### Evaluation outputs
+
+| Evaluation | Script | Output (`eval/`) | Shows |
+|---|---|---|---|
+| Human alignment | `scripts/eval_alignment.py` | `alignment.csv` | remove rate and agreement with humans per judge, overall and per bin |
+| | | `decisions_overall.png` | allow/remove counts per judge on the original comments, with the human split |
+| | | `decisions_by_bin.png` | the same counts per human-toxicity bin |
+| | | `removal_gap.png` | model − human % removed per bin (DMP judges dashed) |
+| Context sensitivity | `scripts/eval_context.py` | `context_shift.csv` | flips each way and net change in removals per judge × context |
+| | | `decisions_by_version.png` | allow/remove counts per version, with each context's change vs. the original |
+| | | `detoxify_score_shift.png` | Detoxify score change (variation − original) per context |
+
+`run_eval.sh` runs both scripts.
+
 ## Proof-of-concept stand-ins
 
 | Proposal | Here | Why |
 |---|---|---|
 | Mistral Small 4 (variations) | `ministral-3:8b` | runs on a 16 GB laptop |
-| Evaluated LLM families | `qwen3:8b` | runs locally |
+| Evaluated LLM families | `qwen3:8b`, `gpt-6-luna` | one local model, one API model |
 | Human-derived DMP prior (G0) | uniform over the 60 values | no human rationales in Civil Comments (proposal H1); see `src/ethos/llm/dmp.py` |
 | Many profiles/samples per text | 1 call per text | time |
 
