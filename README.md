@@ -14,7 +14,8 @@ moderation decisions for Civil Comments, including contextual variations of each
 | 1. Sample comments | `scripts/extract_sample.py` | `configs/sample.yaml` | `processed/sample_n100/sample.csv` + `figures/` |
 | 2. Generate variations | `scripts/shell/run_generate_variations.sh` | `configs/generation.yaml` | `processed/sample_n100/variations.csv` |
 | 3. Judge | `scripts/shell/run_judge.sh` | `configs/judges.yaml` | `judgements/sample_n100/judgements.csv` |
-| 4. Evaluate | `scripts/shell/run_eval.sh` | `configs/judges.yaml` | `judgements/sample_n100/eval/` |
+| 4. Kaleido values | `scripts/shell/run_kaleido.sh` | `configs/kaleido.yaml` | `kaleido` column of `judgements.csv` |
+| 5. Evaluate | `scripts/shell/run_eval.sh` | `configs/judges.yaml` | `judgements/sample_n100/eval/` |
 
 - **Sample:** 100 top-level, deduplicated Civil Comments **test-split** comments (Detoxify was trained on train)
   with ≥30 annotators, 25 per human-toxicity bin (0–0.25, 0.25–0.5, 0.5–0.75, 0.75–1).
@@ -49,10 +50,12 @@ Raw data: Kaggle *Jigsaw Unintended Bias in Toxicity Classification*, `all_data.
 3. **Generate variations:** set the model and word limits in `configs/generation.yaml`, then run
    `scripts/shell/run_generate_variations.sh`.
 4. **Judge:** set `sample_dir` and the judges in `configs/judges.yaml`, then run `scripts/shell/run_judge.sh`.
-5. **Evaluate:** run `scripts/shell/run_eval.sh` for human alignment and context sensitivity
+5. **Kaleido values:** run `scripts/shell/run_kaleido.sh` to add the values, rights and duties Kaleido finds in each
+   rationale to the `kaleido` column of `judgements.csv` (needs `HF_TOKEN` in `.env`; about 30 min).
+6. **Evaluate:** run `scripts/shell/run_eval.sh` for human alignment, context sensitivity and Kaleido values
    (figures and CSVs in `data/judgements/<sample>/eval/`).
 
-Add `--limit 3` to steps 3–4 for a quick test, or `--only <judge name>` to step 4 to run a single judge.
+Add `--limit 3` to steps 3–5 for a quick test, or `--only <judge name>` to step 4 to run a single judge.
 A stopped step picks up where it left off when you run it again. Thinking is off (`reasoning_effort: none`), so
 each LLM judge takes about 15–20 min for 400 texts. Remove that line to get rationales with thinking, which takes about 2 h per judge.
 
@@ -66,9 +69,15 @@ each LLM judge takes about 15–20 min for 400 texts. Remove that line to get ra
 | | | `removal_gap.png` | model − human % removed per bin (DMP judges dashed) |
 | Context sensitivity | `scripts/eval_context.py` | `context_shift.csv` | flips each way and net change in removals per judge × context |
 | | | `decisions_by_version.png` | allow/remove counts per version, with each context's change vs. the original |
+| | | `decisions_by_version_pooled.png` | the same, all base judges vs all DMP judges (models pooled) |
+| | | `context_shift.png` | net change in the share of comments removed, per judge and context |
 | | | `detoxify_score_shift.png` | Detoxify score change (variation − original) per context |
+| Kaleido values | `scripts/eval_values.py` | `kaleido_values.csv` | number of rationales mentioning each Kaleido value: overall, base vs DMP, and per judge |
+| | | `kaleido_values_overall.png` | top 20 values across all judges |
+| | | `kaleido_values_by_judge.png` | top 10 values, one row per model with base and DMP side by side (DMP hatched) |
+| | | `kaleido_values_base_vs_dmp.png` | the same top 10 values, all base judges vs all DMP judges (models pooled) |
 
-`run_eval.sh` runs both scripts.
+`run_eval.sh` runs all three scripts.
 
 ## Proof-of-concept stand-ins
 
@@ -82,10 +91,10 @@ each LLM judge takes about 15–20 min for 400 texts. Remove that line to get ra
 ## Layout
 
 ```
-configs/    sample.yaml, generation.yaml, judges.yaml
+configs/    sample.yaml, generation.yaml, judges.yaml, kaleido.yaml
 prompts/    variation + judge prompts, 60-value taxonomy
-scripts/    extract_sample.py, generate_variations.py, judge.py, shell/
-src/ethos/  judges/ (human, detoxify, base LLM, pluralistic), llm/ (Ollama client, DMP profiles), plotting/
+scripts/    extract_sample.py, generate_variations.py, judge.py, kaleido_values.py, shell/
+src/ethos/  judges/ (human, detoxify, base LLM, pluralistic), llm/ (Ollama and OpenAI clients, DMP profiles, Kaleido), plotting/
 notebooks/  exploratory analysis
 ```
 

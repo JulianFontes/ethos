@@ -322,6 +322,7 @@ dependencies = [
     { name = "pandas" },
     { name = "pyyaml" },
     { name = "tqdm" },
+    { name = "transformers" },
 ]
 
 [package.dev-dependencies]
@@ -337,6 +338,7 @@ requires-dist = [
     { name = "pandas" },
     { name = "pyyaml" },
     { name = "tqdm" },
+    { name = "transformers" },
 ]
 
 [package.metadata.requires-dev]

@@ -2,8 +2,11 @@
 consequentialist, emotional and relational variations.
 
 Writes to data/judgements/<sample>/eval/:
-  context_shift.csv         flips each way (allow -> remove, remove -> allow) and the net change in remove count
+  context_shift.csv         flips each way (allow -> remove, remove -> allow), the net change in remove count, and
+                            shift_pct = net change as a % of comments = P(remove | context) - P(remove | original)
   decisions_by_version.png  allow/remove split per version, with each context's change vs. the original
+  decisions_by_version_pooled.png  the same, all base judges vs all DMP judges (models pooled)
+  context_shift.png         net change in the share of comments removed, per judge and context
   detoxify_score_shift.png  raw Detoxify score change (variation - original) per context
 """
 import argparse
@@ -19,7 +22,8 @@ CONTEXTS = [v for v in VERSIONS if v != "original"]
 
 
 def shift_table(j, judges):
-    """One row per judge and context: flips each way and the net change in remove count."""
+    """One row per judge and context: flips each way, the net change in remove count, and that change as a
+    percentage of the comments (shift_pct = mean of delta x 100)."""
     rows = []
     for judge in judges:
         d = j[j.judge == judge].pivot(index="id", columns="version", values="decision")
@@ -28,7 +32,8 @@ def shift_table(j, judges):
             delta = (pair[c] == "remove").astype(int) - (pair.original == "remove").astype(int)
             to_remove, to_allow = int((delta == 1).sum()), int((delta == -1).sum())
             rows.append({"judge": judge, "context": c, "n": len(delta), "to_remove": to_remove,
-                         "to_allow": to_allow, "net_change": to_remove - to_allow})
+                         "to_allow": to_allow, "net_change": to_remove - to_allow,
+                         "shift_pct": 100 * delta.mean()})
     return pd.DataFrame(rows)
 
 
@@ -54,7 +59,7 @@ def main():
 
     out_dir.mkdir(parents=True, exist_ok=True)
     table.to_csv(out_dir / "context_shift.csv", index=False)
-    plot_context(j, diffs, judges, CONTEXTS, out_dir)
+    plot_context(j, diffs, judges, CONTEXTS, out_dir, table=table)
 
     print(table.to_string(index=False, float_format="%.1f"))
     print(f"wrote context_shift.csv and figures to {out_dir.relative_to(ROOT)}/")

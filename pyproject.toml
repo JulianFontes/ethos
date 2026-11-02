@@ -9,6 +9,7 @@ dependencies = [
     "pandas",
     "pyyaml",
     "tqdm",
+    "transformers",
 ]
 
 [build-system]

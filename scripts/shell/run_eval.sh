@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Run the evaluations on the judgements (configs/judges.yaml picks the sample):
-# human alignment, then context sensitivity. Figures and CSVs go to data/judgements/<sample>/eval/.
+# human alignment, context sensitivity, then Kaleido values. Figures and CSVs go to data/judgements/<sample>/eval/.
 #
 # Usage:
 #   scripts/shell/run_eval.sh                                          # sample_dir from configs/judges.yaml
-#   scripts/shell/run_eval.sh --sample-dir data/processed/sample_n100  # extra args are passed to both scripts
+#   scripts/shell/run_eval.sh --sample-dir data/processed/sample_n100  # extra args are passed to every script
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."   # project root (this script lives in scripts/shell/)
@@ -17,3 +17,6 @@ echo "Evaluating human alignment ..."
 
 echo "Evaluating context sensitivity ..."
 "$PYTHON" scripts/eval_context.py "$@"
+
+echo "Evaluating Kaleido values ..."
+"$PYTHON" scripts/eval_values.py "$@"

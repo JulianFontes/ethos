@@ -1,10 +1,11 @@
 """Shared helpers for all judges.
 
 Every judge writes rows to one long CSV, data/judgements/<sample>/judgements.csv:
-    id, version, text, judge, score, decision, rationale, profile
+    id, version, text, judge, score, decision, rationale, profile, kaleido
 `version` is "original" or one of the variation types; `judge` is the judge's name from its config
 (the human annotations are the `human` judge's rows, originals only); `profile` is the value profile
-a pluralistic judge was given (empty for other judges).
+a pluralistic judge was given (empty for other judges); `kaleido` holds the Kaleido values for the
+rationale, filled in later by scripts/kaleido_values.py.
 """
 import csv
 import shutil
@@ -15,7 +16,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
 VERSIONS = ["original", "consequentialist", "emotional", "relational"]
-COLUMNS = ["id", "version", "text", "judge", "score", "decision", "rationale", "profile"]
+COLUMNS = ["id", "version", "text", "judge", "score", "decision", "rationale", "profile", "kaleido"]
 
 
 def load_config(path):
