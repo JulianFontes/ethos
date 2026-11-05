@@ -1,0 +1,6 @@
+# Kaleido values for each judge rationale (scripts/kaleido_values.py). Fills the `kaleido` column of
+# data/judgements/<folder name>/judgements.csv; rows without a rationale (human, detoxify) stay empty.
+
+sample_dir: data/processed/sample_n100
+model: allenai/kaleido-large                 # gated: accept the license on Hugging Face, HF_TOKEN in .env
+n: 10                                        # values/rights/duties generated per rationale
