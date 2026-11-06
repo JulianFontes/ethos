@@ -1,8 +1,10 @@
 # Every judge, run in order by scripts/judge.py. Each `name` is the value written to the
-# `judge` column; `type` picks the implementation (human, detoxify, ollama, ollama_dmp).
+# `judge` column; `type` picks the implementation (human, detoxify, ollama, ollama_dmp, ollama_annotator,
+# and the openai_* versions of the LLM types).
 
 # Sample to judge: reads variations.csv (originals + variations) and sample.csv (human labels) from here and writes
-# data/judgements/<folder name>/judgements.csv (e.g. data/judgements/sample_n100/).
+# data/judgements/<folder name>/judgements.csv (e.g. data/judgements/sample_n100/). A sample without variations.csv
+# (e.g. data/processed/consensus_n125) is judged on its original comments only.
 sample_dir: data/processed/sample_n100
 
 # Settings shared by the LLM judges; a judge's own settings override them.
@@ -29,28 +31,49 @@ judges:
     model: qwen3:8b                          # must be pulled first: `ollama pull qwen3:8b`
     prompt: prompts/judge_base.txt
 
-  # Pluralistic LLM: Dynamic Moral Profiling. Profiles come from a uniform prior over the
-  # value taxonomy for now (see ethos/llm/dmp.py): p ~ Dirichlet(alpha * uniform), keep top_k.
-  - name: qwen3:8b-dmp
-    type: ollama_dmp
+  # LLM annotator: rates each comment with the original Civil Comments annotator instructions, `samples` times,
+  # like a panel of annotators. score = share of ratings that are Toxic or Very Toxic (same as the human score).
+  - name: qwen3:8b-annotator
+    type: ollama_annotator
     model: qwen3:8b
-    prompt: prompts/judge_pluralistic.txt    # {profile} is filled in per comment
-    values: prompts/taxonomy-values.txt
-    alpha: 10                                # the paper's best setting
-    top_k: 3                                 # the paper's profile size
-    seed: 0                                  # combined with each comment's id
+    prompt: prompts/judge_annotator.txt
+    samples: 10                              # ratings per comment version
+    temperature: 1.0                         # > 0 so repeated ratings can differ
+    threshold: 0.5                           # score >= threshold -> "remove"
+    workers: 4                               # comments rated at once; needs OLLAMA_NUM_PARALLEL >= 4
 
-  # OpenAI API (needs OPENAI_API_KEY in .env).
-  - name: gpt-6-luna-base
-    type: openai
-    model: gpt-6-luna
-    prompt: prompts/judge_base.txt
-
-  - name: gpt-6-luna-dmp
-    type: openai_dmp
-    model: gpt-6-luna
-    prompt: prompts/judge_pluralistic.txt
+  # Pluralistic LLM annotator: the same instructions, but each of the `samples` ratings gets its own value profile
+  # (Dirichlet(alpha * uniform) over the taxonomy, top_k values), like annotators with different values.
+  - name: qwen3:8b-annotator-dmp
+    type: ollama_annotator_dmp
+    model: qwen3:8b
+    prompt: prompts/judge_annotator_pluralistic.txt   # {profile} is filled in per rating
     values: prompts/taxonomy-values.txt
     alpha: 10
     top_k: 3
-    seed: 0
+    seed: 0                                  # rating i uses seed + i, combined with the comment id
+    samples: 10
+    temperature: 1.0
+    threshold: 0.5
+    workers: 4
+
+  # Minimal judge on the OpenAI API: short TOXIC / NOT TOXIC prompt (no annotator instructions), rated `samples`
+  # times; score = share TOXIC. `samples` paid calls per comment version.
+  - name: gpt-6-luna-minimal
+    type: openai_minimal
+    model: gpt-6-luna
+    prompt: prompts/judge_minimal.txt
+    samples: 10
+    temperature: 1.0
+    reasoning_effort: none
+    threshold: 0.5
+    workers: 8
+
+  # LLM annotator on the OpenAI API: `samples` paid calls per comment version, so off by default.
+  # - name: gpt-6-luna-annotator
+  #   type: openai_annotator
+  #   model: gpt-6-luna
+  #   prompt: prompts/judge_annotator.txt
+  #   samples: 10
+  #   temperature: 1.0
+  #   threshold: 0.5

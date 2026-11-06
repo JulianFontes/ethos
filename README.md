@@ -25,6 +25,9 @@ moderation decisions for Civil Comments, including contextual variations of each
   - `human`: Civil Comments annotations (originals only); `score` = share of annotators rating it toxic, `decision` = remove if ≥ 0.5
   - `detoxify`: Detoxify `unbiased`, remove if score ≥ 0.5
   - `<model>-base`: base LLM, allow/remove + rationale
+  - `<model>-annotator`: base LLM given the original Civil Comments annotator instructions (`prompts/judge_annotator.txt`),
+    rating each comment 10 times like a panel of annotators; `score` = share of ratings that are Toxic or Very Toxic
+    (the same definition as the human score), every rating in the `ratings` column
   - `<model>-dmp`: pluralistic LLM, conditioned on a sampled value profile (60-value taxonomy, *The Pluralistic Moral Gap*); the profile is in the `profile` column
   - `gpt-6-luna-base` / `gpt-6-luna-dmp`: the same base and pluralistic judges on OpenAI's `gpt-6-luna` (needs `OPENAI_API_KEY` in `.env`)
 
@@ -50,6 +53,8 @@ Raw data: Kaggle *Jigsaw Unintended Bias in Toxicity Classification*, `all_data.
 3. **Generate variations:** set the model and word limits in `configs/generation.yaml`, then run
    `scripts/shell/run_generate_variations.sh`.
 4. **Judge:** set `sample_dir` and the judges in `configs/judges.yaml`, then run `scripts/shell/run_judge.sh`.
+   A sample without `variations.csv` is judged on its original comments only, e.g. the consensus-balanced sample:
+   `scripts/shell/run_judge.sh --sample-dir data/processed/consensus_n125 --only human detoxify qwen3:8b-annotator`.
 5. **Kaleido values:** run `scripts/shell/run_kaleido.sh` to add the values, rights and duties Kaleido finds in each
    rationale to the `kaleido` column of `judgements.csv` (needs `HF_TOKEN` in `.env`; about 30 min).
 6. **Evaluate:** run `scripts/shell/run_eval.sh` for human alignment, context sensitivity and Kaleido values

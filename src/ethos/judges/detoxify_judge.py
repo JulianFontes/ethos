@@ -3,6 +3,7 @@
 Uses Detoxify's "unbiased" model by default (trained on the Civil Comments train split;
 our sample is test-only).
 """
+import numpy as np
 import torch
 from detoxify import Detoxify
 from tqdm import tqdm
@@ -14,7 +15,7 @@ BATCH_SIZE = 32
 
 def run(cfg, sample_dir, limit=None):
     name, threshold = cfg["name"], cfg.get("threshold", 0.5)
-    texts = todo(sample_dir, name, limit)
+    texts = todo(sample_dir, name, limit, cfg.get("query"))
     out = output_path(sample_dir)
     if texts.empty:
         print(f"{name}: nothing to do")
@@ -25,7 +26,7 @@ def run(cfg, sample_dir, limit=None):
     with tqdm(total=len(texts), desc=name, unit="text") as bar:
         for start in range(0, len(texts), BATCH_SIZE):
             batch = texts.iloc[start:start + BATCH_SIZE]
-            scores = model.predict(list(batch.text))["toxicity"]
+            scores = np.atleast_1d(model.predict(list(batch.text))["toxicity"])   # a 1-text batch returns a float
             append_rows(out, [
                 {"id": row.id, "version": row.version, "text": row.text, "judge": name,
                  "score": round(float(score), 4), "decision": "remove" if score >= threshold else "allow",

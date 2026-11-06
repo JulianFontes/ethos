@@ -28,7 +28,7 @@ def judge_texts(cfg, sample_dir, limit, prompt_for):
     name = cfg["name"]
     llm = openai_client if cfg["type"].startswith("openai") else ollama_client
     client = llm.get_client(cfg["model"], cfg.get("base_url", DEFAULT_BASE_URL))  # fails fast if unavailable
-    texts = todo(sample_dir, name, limit)
+    texts = todo(sample_dir, name, limit, cfg.get("query"))
     out = output_path(sample_dir)
     if texts.empty:
         print(f"{name}: nothing to do")

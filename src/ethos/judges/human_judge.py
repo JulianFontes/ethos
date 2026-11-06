@@ -12,7 +12,7 @@ from ethos.judges.core import ROOT, append_rows, output_path, todo
 
 def run(cfg, sample_dir, limit=None):
     name, threshold = cfg["name"], cfg.get("threshold", 0.5)
-    texts = todo(sample_dir, name, limit)
+    texts = todo(sample_dir, name, limit, cfg.get("query"))
     texts = texts[texts.version == "original"]
     if texts.empty:
         print(f"{name}: nothing to do")
