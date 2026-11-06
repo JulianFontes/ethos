@@ -2,15 +2,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+from ethos.data import consensus
 from ethos.plotting.sample_overview import STYLE, INK, INK2, GRID, SURFACE
 
 BLUE = "#2a78d6"
-
-
-def consensus(p):
-    """Share of annotators in the majority: 0.5 = even split, 1 = unanimous."""
-    return np.maximum(p, 1 - p)
-
 
 def plot_consensus_distribution(p, path, scope, low=0.6):
     """Save a histogram of consensus max(p, 1 - p), with the low-consensus range shaded and the median marked."""

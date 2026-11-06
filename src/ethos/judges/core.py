@@ -6,7 +6,7 @@ Every judge writes rows to one long CSV, data/judgements/<sample>/judgements.csv
 (the human annotations are the `human` judge's rows, originals only); `profile` is the value profile
 a pluralistic judge was given (empty for other judges); `kaleido` holds the Kaleido values for the
 rationale, filled in later by scripts/kaleido_values.py; `ratings` holds an LLM annotator judge's individual
-ratings (JSON list; see ethos.judges.annotator_judge).
+ratings (JSON list; see ethos.judges.llm_judge).
 """
 import csv
 import shutil
@@ -25,7 +25,7 @@ def load_config(path):
         return yaml.safe_load(f)
 
 
-LLM_TYPES = {"ollama", "ollama_dmp", "ollama_annotator", "ollama_annotator_dmp", "ollama_minimal"}
+LLM_TYPES = {"ollama_minimal", "ollama_minimal_dmp"}
 
 
 def load_judges(path):

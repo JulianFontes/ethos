@@ -1,20 +1,17 @@
-# Every judge, run in order by scripts/judge.py. Each `name` is the value written to the
-# `judge` column; `type` picks the implementation (human, detoxify, ollama, ollama_dmp, ollama_annotator,
-# and the openai_* versions of the LLM types).
+# Every judge, run in order by scripts/judge.py. Each `name` is the value written to the `judge` column; `type`
+# picks the implementation (human, detoxify, ollama_minimal / openai_minimal).
+# Older judges (allow/remove base and DMP, annotator-instruction judges) are archived in .artifact/configs/judges.yaml.
 
-# Sample to judge: reads variations.csv (originals + variations) and sample.csv (human labels) from here and writes
-# data/judgements/<folder name>/judgements.csv (e.g. data/judgements/sample_n100/). A sample without variations.csv
-# (e.g. data/processed/consensus_n125) is judged on its original comments only.
-sample_dir: data/processed/sample_n100
+# Sample to judge: its sample.csv (comments and human labels); results go to data/judgements/<folder name>/.
+sample_dir: data/processed/consensus_n125
 
-# Settings shared by the LLM judges; a judge's own settings override them.
+# Settings shared by the Ollama judges; a judge's own settings override them.
 llm_defaults:
   base_url: http://localhost:11434/v1        # Ollama's OpenAI-compatible endpoint
-  reasoning_effort: none                     # thinking off for every LLM (remove for model defaults)
-  # temperature / max_tokens: left out = the model's own defaults
+  reasoning_effort: none                     # thinking off (remove for model defaults)
 
 judges:
-  # Human annotations from Civil Comments (original comments only; variations have no human labels).
+  # Human annotations from Civil Comments.
   - name: human
     type: human
     threshold: 0.5                           # share of annotators rating it toxic >= threshold -> "remove"
@@ -22,58 +19,17 @@ judges:
   # Toxicity classifier baseline.
   - name: detoxify
     type: detoxify
-    checkpoint: unbiased                     # trained on the Civil Comments train split; our sample is test-only
+    checkpoint: unbiased                     # trained on the Civil Comments train split; our samples are test-only
     threshold: 0.5                           # toxicity >= threshold -> "remove"
 
-  # Base LLM: no value conditioning.
-  - name: qwen3:8b-base
-    type: ollama
-    model: qwen3:8b                          # must be pulled first: `ollama pull qwen3:8b`
-    prompt: prompts/judge_base.txt
-
-  # LLM annotator: rates each comment with the original Civil Comments annotator instructions, `samples` times,
-  # like a panel of annotators. score = share of ratings that are Toxic or Very Toxic (same as the human score).
-  - name: qwen3:8b-annotator
-    type: ollama_annotator
-    model: qwen3:8b
-    prompt: prompts/judge_annotator.txt
-    samples: 10                              # ratings per comment version
-    temperature: 1.0                         # > 0 so repeated ratings can differ
-    threshold: 0.5                           # score >= threshold -> "remove"
-    workers: 4                               # comments rated at once; needs OLLAMA_NUM_PARALLEL >= 4
-
-  # Pluralistic LLM annotator: the same instructions, but each of the `samples` ratings gets its own value profile
-  # (Dirichlet(alpha * uniform) over the taxonomy, top_k values), like annotators with different values.
-  - name: qwen3:8b-annotator-dmp
-    type: ollama_annotator_dmp
-    model: qwen3:8b
-    prompt: prompts/judge_annotator_pluralistic.txt   # {profile} is filled in per rating
-    values: prompts/taxonomy-values.txt
-    alpha: 10
-    top_k: 3
-    seed: 0                                  # rating i uses seed + i, combined with the comment id
-    samples: 10
-    temperature: 1.0
-    threshold: 0.5
-    workers: 4
-
-  # Minimal judge on the OpenAI API: short TOXIC / NOT TOXIC prompt (no annotator instructions), rated `samples`
-  # times; score = share TOXIC. `samples` paid calls per comment version.
+  # Minimal judge: short TOXIC / NOT TOXIC prompt (prompts/judge_minimal.txt), rated `samples` times;
+  # score = share TOXIC. On the OpenAI API that is `samples` paid calls per comment.
   - name: gpt-6-luna-minimal
     type: openai_minimal
     model: gpt-6-luna
     prompt: prompts/judge_minimal.txt
     samples: 10
-    temperature: 1.0
+    temperature: 1.0                         # > 0 so repeated ratings can differ
     reasoning_effort: none
     threshold: 0.5
     workers: 8
-
-  # LLM annotator on the OpenAI API: `samples` paid calls per comment version, so off by default.
-  # - name: gpt-6-luna-annotator
-  #   type: openai_annotator
-  #   model: gpt-6-luna
-  #   prompt: prompts/judge_annotator.txt
-  #   samples: 10
-  #   temperature: 1.0
-  #   threshold: 0.5

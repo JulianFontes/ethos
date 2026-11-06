@@ -1,66 +1,98 @@
-"""Base LLM judge: one isolated call per comment version, returning allow/remove plus a rationale.
+"""LLM judge: asks an LLM whether each comment is TOXIC or NOT TOXIC, `samples` times, like a panel of annotators.
 
-Works for any model served by Ollama (config type "ollama") or the OpenAI API (config type "openai"). `judge_texts` is the shared loop,
-also used by the pluralistic judge (ethos.judges.pluralistic_judge).
-Failed calls are skipped (not written) and retried on the next run.
+Prompt: prompts/judge_minimal.txt (short, no annotator instructions). Each call returns {"evaluation", "rationale"}.
+For each comment:
+
+    score    = share of the `samples` ratings that are TOXIC   (comparable to the human `toxicity` score)
+    decision = "remove" if score >= threshold (default 0.5)
+    ratings  = JSON list of every rating, for later analysis
+
+Two variants (config `type`; ollama_* runs locally through Ollama, openai_* through the OpenAI API):
+  ollama_minimal / openai_minimal          the base judge, no profile
+  ollama_minimal_dmp / openai_minimal_dmp  Dynamic Moral Profiling: each rating gets its own random value profile
+                                           (ethos.llm.dmp; prompts/judge_minimal_pluralistic.txt fills {profile})
+
+A comment is written only when all its ratings succeed; otherwise it is retried on the next run.
 """
+import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from tqdm import tqdm
 
 from ethos.judges.core import ROOT, append_rows, output_path, todo
 from ethos.llm import ollama_client, openai_client
+from ethos.llm.dmp import format_profile, load_values, sample_profile
 from ethos.llm.ollama_client import DEFAULT_BASE_URL
 
-DECISION_SCHEMA = {
+SCHEMA = {
     "type": "object",
-    "properties": {
-        "decision": {"type": "string", "enum": ["allow", "remove"]},
-        "rationale": {"type": "string"},
-    },
-    "required": ["decision", "rationale"],
+    "properties": {"evaluation": {"type": "string", "enum": ["TOXIC", "NOT TOXIC"]},
+                   "rationale": {"type": "string"}},
+    "required": ["evaluation", "rationale"],
     "additionalProperties": False,
 }
 
 
-def judge_texts(cfg, sample_dir, limit, prompt_for):
-    """Judge every remaining comment version. `prompt_for(row)` returns (system_prompt, profile)."""
-    name = cfg["name"]
+def rate_texts(cfg, sample_dir, limit, prompt_for):
+    """Rate every remaining comment `samples` times. `prompt_for(row, i)` returns (system_prompt, profile) for
+    rating i; profile is "" when there is none."""
+    name, n = cfg["name"], cfg.get("samples", 10)
+    threshold, temperature = cfg.get("threshold", 0.5), cfg.get("temperature", 1.0)
     llm = openai_client if cfg["type"].startswith("openai") else ollama_client
     client = llm.get_client(cfg["model"], cfg.get("base_url", DEFAULT_BASE_URL))  # fails fast if unavailable
     texts = todo(sample_dir, name, limit, cfg.get("query"))
-    out = output_path(sample_dir)
     if texts.empty:
         print(f"{name}: nothing to do")
         return
 
-    def judge(row):
-        system, profile = prompt_for(row)
-        try:
-            result = llm.chat_json(client, cfg["model"], system, f"Comment:\n{row.text}", DECISION_SCHEMA,
-                                   temperature=cfg.get("temperature"), max_tokens=cfg.get("max_tokens"),
-                                   reasoning_effort=cfg.get("reasoning_effort"))
-        except Exception as e:  # connection error, bad JSON, refusal, rate limit
-            return row, profile, e
-        return row, profile, result
+    def rate(row):
+        ratings, profiles = [], []
+        for i in range(n):
+            system, profile = prompt_for(row, i)
+            profiles.append(profile)
+            try:
+                ratings.append(llm.chat_json(client, cfg["model"], system, f"Comment:\n{row.text}", SCHEMA,
+                                             temperature=temperature, max_tokens=cfg.get("max_tokens"),
+                                             reasoning_effort=cfg.get("reasoning_effort")))
+            except Exception as e:  # connection error, bad JSON, refusal, rate limit
+                return row, "", e
+        return row, json.dumps(profiles) if any(profiles) else "", ratings
 
-    # `workers` requests in flight at once (default 1); rows are written from this thread only, as they finish.
-    failed = 0
+    # `workers` comments in flight at once (default 1); rows are written from this thread only, as they finish.
+    out, failed = output_path(sample_dir), 0
     with ThreadPoolExecutor(max_workers=cfg.get("workers", 1)) as pool:
-        futures = [pool.submit(judge, row) for row in texts.itertuples(index=False)]
+        futures = [pool.submit(rate, row) for row in texts.itertuples(index=False)]
         for future in tqdm(as_completed(futures), total=len(futures), desc=name, unit="text"):
-            row, profile, result = future.result()
-            if isinstance(result, Exception):
+            row, profile, ratings = future.result()
+            if isinstance(ratings, Exception):
                 failed += 1
-                tqdm.write(f"{name}: failed {row.id}/{row.version}: {str(result)[:120]}")
+                tqdm.write(f"{name}: failed {row.id}/{row.version}: {str(ratings)[:120]}")
                 continue
+            score = sum(r["evaluation"] == "TOXIC" for r in ratings) / len(ratings)
             append_rows(out, [{"id": row.id, "version": row.version, "text": row.text, "judge": name,
-                               "score": "", "decision": result["decision"], "rationale": result["rationale"],
-                               "profile": profile}])
+                               "score": round(score, 4), "decision": "remove" if score >= threshold else "allow",
+                               "rationale": "", "profile": profile, "ratings": json.dumps(ratings)}])
     if failed:
         print(f"{name}: {failed} failed; re-run to retry them")
 
 
 def run(cfg, sample_dir, limit=None):
+    """Base judge: the same prompt for every rating."""
     system = (ROOT / cfg["prompt"]).read_text().strip()
-    judge_texts(cfg, sample_dir, limit, lambda row: (system, ""))
+    rate_texts(cfg, sample_dir, limit, lambda row, i: (system, ""))
+
+
+def run_dmp(cfg, sample_dir, limit=None):
+    """DMP judge: rating i gets a random profile of `top_k` values (default 10) from `values`, seeded by the comment
+    id and seed + i; `equal_weights: true` gives every value the same weight."""
+    template = (ROOT / cfg["prompt"]).read_text().strip()
+    values = load_values(cfg["values"])
+
+    def prompt_for(row, i):
+        profile = sample_profile(row.id, values, cfg.get("alpha", 10), cfg.get("top_k", 10), cfg.get("seed", 0) + i)
+        if cfg.get("equal_weights", False):
+            profile = [(v, 1 / len(profile)) for v, _ in profile]
+        profile = format_profile(profile)
+        return template.replace("{profile}", profile), profile
+
+    rate_texts(cfg, sample_dir, limit, prompt_for)
