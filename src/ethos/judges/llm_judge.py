@@ -10,13 +10,15 @@ For each comment:
 Two variants (config `type`; ollama_* runs locally through Ollama, openai_* through the OpenAI API):
   ollama_minimal / openai_minimal          the base judge, no profile
   ollama_minimal_dmp / openai_minimal_dmp  Dynamic Moral Profiling: each rating gets its own random value profile
-                                           (ethos.llm.dmp; prompts/judge_minimal_pluralistic.txt fills {profile})
+                                           (ethos.llm.dmp), or a fixed `profile` from the config, filled into
+                                           prompts/judge_minimal_pluralistic.txt's {profile}
 
 A comment is written only when all its ratings succeed; otherwise it is retried on the next run.
 """
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import yaml
 from tqdm import tqdm
 
 from ethos.judges.core import ROOT, append_rows, output_path, todo
@@ -82,14 +84,28 @@ def run(cfg, sample_dir, limit=None):
     rate_texts(cfg, sample_dir, limit, lambda row, i: (system, ""))
 
 
+def load_profile(path, values):
+    """A fixed profile from a YAML file in prompts/profiles/ (`values: {value: weight, ...}`), as
+    [(value, weight), ...] in file order with weights rescaled to sum to 1. Every value must be in `values`."""
+    spec = yaml.safe_load((ROOT / path).read_text())["values"]
+    missing = [v for v in spec if v not in values]
+    if missing:
+        raise ValueError(f"{path}: values not in the taxonomy: {missing}")
+    total = sum(spec.values())
+    return [(v, w / total) for v, w in spec.items()]
+
+
 def run_dmp(cfg, sample_dir, limit=None):
-    """DMP judge: rating i gets a random profile of `top_k` values (default 10) from `values`, seeded by the comment
-    id and seed + i; `equal_weights: true` gives every value the same weight."""
+    """DMP judge. By default rating i gets a random profile of `top_k` values (default 10) from `values`, seeded by
+    the comment id and seed + i. With `profile: <file>` (a YAML file in prompts/profiles/ with value: weight) every rating gets that fixed
+    profile instead. `equal_weights: true` gives every value the same weight."""
     template = (ROOT / cfg["prompt"]).read_text().strip()
     values = load_values(cfg["values"])
+    fixed = load_profile(cfg["profile"], values) if cfg.get("profile") else None
 
     def prompt_for(row, i):
-        profile = sample_profile(row.id, values, cfg.get("alpha", 10), cfg.get("top_k", 10), cfg.get("seed", 0) + i)
+        profile = fixed or sample_profile(row.id, values, cfg.get("alpha", 10), cfg.get("top_k", 10),
+                                          cfg.get("seed", 0) + i)
         if cfg.get("equal_weights", False):
             profile = [(v, 1 / len(profile)) for v, _ in profile]
         profile = format_profile(profile)

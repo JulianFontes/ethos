@@ -1,0 +1,14 @@
+# Expression profile: favours free expression and individual autonomy (steers toward NOT TOXIC).
+# value: weight. Values must be in prompts/taxonomy-values.txt; weights are rescaled to sum to 1.
+# Judges with `equal_weights: true` ignore these weights and give every value the same weight.
+values:
+  Freedom: 0.20
+  Autonomy: 0.18
+  Individualism: 0.16
+  Privacy: 0.14
+  Creativity: 0.12
+  Safety: 0.05
+  Well-being: 0.05
+  Care: 0.04
+  Inclusivity: 0.03
+  Respect: 0.03

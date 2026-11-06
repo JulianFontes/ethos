@@ -8,6 +8,9 @@ rated with the minimal prompt (the same prompt and answer format as ethos.judges
   --set minimal_dmp      M-B  random DMP: a new random 10-value profile per rating
                               (prompts/judge_minimal_pluralistic.txt)                                  10 ratings
   --set minimal_compare  both, in one output folder
+  --set steer            M, plus two fixed 10-value profiles (same prompt as random DMP), to test steering both ways:
+                         M-C expression (Freedom, Honesty, Autonomy, ...)   should lower TOXIC answers
+                         M-D protective (Respect, Compassion, ...)          should raise TOXIC answers      10 each
 
 score = share of ratings that are TOXIC. Older probes (annotator instructions, reasoning, thinking) are in .artifact/.
 
@@ -27,7 +30,7 @@ from pathlib import Path
 import pandas as pd
 from tqdm import tqdm
 
-from ethos.judges.llm_judge import SCHEMA
+from ethos.judges.llm_judge import SCHEMA, load_profile
 from ethos.llm import ollama_client, openai_client
 from ethos.llm.dmp import format_profile, load_values, sample_profile
 
@@ -44,10 +47,13 @@ COMMENTS = {   # id: role
 }
 MINIMAL = "prompts/judge_minimal.txt"
 MINIMAL_DMP = "prompts/judge_minimal_pluralistic.txt"
-# set: {condition: (prompt, random profile?, ratings)}
-BASE = {"M no profile, minimal prompt": (MINIMAL, False, 10)}
-DMP = {"M-B random DMP, minimal": (MINIMAL_DMP, True, 10)}
-SETS = {"minimal": BASE, "minimal_dmp": DMP, "minimal_compare": {**BASE, **DMP}}
+FIXED = {"expression": "prompts/profiles/expression.yaml", "protective": "prompts/profiles/protective.yaml"}
+# set: {condition: (prompt, profile: "none" / "random" / a FIXED key, ratings)}
+BASE = {"M no profile, minimal prompt": (MINIMAL, "none", 10)}
+DMP = {"M-B random DMP, minimal": (MINIMAL_DMP, "random", 10)}
+STEER = {"M-C expression, minimal": (MINIMAL_DMP, "expression", 10),
+         "M-D protective, minimal": (MINIMAL_DMP, "protective", 10)}
+SETS = {"minimal": BASE, "minimal_dmp": DMP, "minimal_compare": {**BASE, **DMP}, "steer": {**BASE, **STEER}}
 
 
 def main():
@@ -65,6 +71,7 @@ def main():
     out = args.out or ROOT / "data/experiments" / f"profile_probe_{args.set}"
 
     values = load_values("prompts/taxonomy-values.txt")
+    fixed = {k: load_profile(path, values) for k, path in FIXED.items()}
     prompts = {f: (ROOT / f).read_text().strip() for f in {c[0] for c in conditions.values()}}
     texts = pd.read_csv(SAMPLE).set_index("id").comment_text
 
@@ -77,13 +84,13 @@ def main():
 
     jobs = []
     for cid in args.ids:
-        for cond, (prompt, random_profile, n) in conditions.items():
+        for cond, (prompt, kind, n) in conditions.items():
             for i in range(max(1, round(n * args.scale))):
                 if (cid, cond, i) in done:
                     continue
                 profile = ""
-                if random_profile:
-                    prof = sample_profile(cid, values, 10, 10, i)
+                if kind != "none":
+                    prof = sample_profile(cid, values, 10, 10, i) if kind == "random" else fixed[kind]
                     if args.equal_weights:
                         prof = [(v, 1 / len(prof)) for v, _ in prof]
                     profile = format_profile(prof)

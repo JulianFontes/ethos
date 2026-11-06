@@ -24,12 +24,57 @@ judges:
 
   # Minimal judge: short TOXIC / NOT TOXIC prompt (prompts/judge_minimal.txt), rated `samples` times;
   # score = share TOXIC. On the OpenAI API that is `samples` paid calls per comment.
-  - name: gpt-6-luna-minimal
+  - name: gpt-6-luna-base
     type: openai_minimal
     model: gpt-6-luna
     prompt: prompts/judge_minimal.txt
     samples: 10
     temperature: 1.0                         # > 0 so repeated ratings can differ
+    reasoning_effort: none
+    threshold: 0.5
+    workers: 8
+
+  # The same judge with Dynamic Moral Profiling: each of the `samples` ratings gets its own random 10-value profile
+  # (prompts/judge_minimal_pluralistic.txt). Compare with gpt-6-luna-base to see how much profiles shift answers.
+  - name: gpt-6-luna-dmp-random
+    type: openai_minimal_dmp
+    model: gpt-6-luna
+    prompt: prompts/judge_minimal_pluralistic.txt
+    values: prompts/taxonomy-values.txt
+    top_k: 10
+    equal_weights: true
+    seed: 0                                  # rating i uses seed + i, combined with the comment id
+    samples: 10
+    temperature: 1.0
+    reasoning_effort: none
+    threshold: 0.5
+    workers: 8
+
+  # Steering: the same DMP judge with one fixed 10-value profile for every rating, using the profile's own weights
+  # (prompts/profiles/*.yaml), to test whether the profile controls the direction of the decision.
+  # Expression should lower TOXIC answers, protective raise them.
+  - name: gpt-6-luna-dmp-expression
+    type: openai_minimal_dmp
+    model: gpt-6-luna
+    prompt: prompts/judge_minimal_pluralistic.txt
+    values: prompts/taxonomy-values.txt
+    profile: prompts/profiles/expression.yaml
+    equal_weights: false
+    samples: 10
+    temperature: 1.0
+    reasoning_effort: none
+    threshold: 0.5
+    workers: 8
+
+  - name: gpt-6-luna-dmp-protective
+    type: openai_minimal_dmp
+    model: gpt-6-luna
+    prompt: prompts/judge_minimal_pluralistic.txt
+    values: prompts/taxonomy-values.txt
+    profile: prompts/profiles/protective.yaml
+    equal_weights: false
+    samples: 10
+    temperature: 1.0
     reasoning_effort: none
     threshold: 0.5
     workers: 8

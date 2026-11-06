@@ -22,7 +22,9 @@ from ethos.judges.core import output_path
 from ethos.plotting.consensus import gap_by_bin, plot_score_gap_by_bin
 
 ROOT = Path(__file__).resolve().parents[1]
-TITLES = {"detoxify": "Detoxify", "gpt-6-luna-minimal": "gpt-6-luna, minimal prompt (10 ratings)", "qwen3:8b-annotator": "qwen3:8b, annotator instructions (10 ratings)",
+TITLES = {"detoxify": "Detoxify", "gpt-6-luna-base": "gpt-6-luna, minimal prompt (10 ratings)", "gpt-6-luna-dmp-random": "gpt-6-luna + random DMP profiles (10 ratings)",
+          "gpt-6-luna-dmp-expression": "gpt-6-luna + expression profile (10 ratings)",
+          "gpt-6-luna-dmp-protective": "gpt-6-luna + protective profile (10 ratings)", "qwen3:8b-annotator": "qwen3:8b, annotator instructions (10 ratings)",
           "qwen3:8b-annotator-dmp": "qwen3:8b + moral profiles (10 profiles)"}
 
 

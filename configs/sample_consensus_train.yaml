@@ -1,0 +1,12 @@
+# Config for scripts/extract_consensus_sample.py: the train counterpart of configs/sample_consensus.yaml, with the
+# same filters (top-level comments, >= 30 raters, deduplicated) and bins, for tuning without touching the test sample.
+
+source: data/processed/toplevel_min30/comments.csv
+split: train          # tuning set; the test sample stays held out
+per_bin: 25           # comments drawn from each bin
+seed: 0               # random seed for a reproducible draw
+
+# Consensus = max(p, 1 - p): 0.5 = even split, 1 = unanimous. Bins are [lo, hi); the last bin includes 1.0.
+bin_edges: [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+
+output_dir: data/processed/consensus_n125_train   # relative to the project root; gets sample.csv and config.yaml
