@@ -35,8 +35,8 @@ from ethos.llm import ollama_client, openai_client
 from ethos.llm.dmp import format_profile, load_values, sample_profile
 
 ROOT = Path(__file__).resolve().parents[2]
-SAMPLE = ROOT / "data/processed/consensus_n125/sample.csv"
-JUDGEMENTS = ROOT / "data/judgements/consensus_n125/judgements.csv"
+SAMPLE = ROOT / "data/processed/consensus_n125_test/sample.csv"
+JUDGEMENTS = ROOT / "data/judgements/consensus_n125_test/judgements.csv"
 BASE_URL, TEMPERATURE = "http://localhost:11434/v1", 1.0
 MODELS = ["qwen3:8b", "gpt-6-luna"]   # qwen3:8b through local Ollama, gpt-6-luna through the OpenAI API
 

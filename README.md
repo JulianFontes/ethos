@@ -54,7 +54,7 @@ Raw data: Kaggle *Jigsaw Unintended Bias in Toxicity Classification*, `all_data.
    `scripts/shell/run_generate_variations.sh`.
 4. **Judge:** set `sample_dir` and the judges in `configs/judges.yaml`, then run `scripts/shell/run_judge.sh`.
    A sample without `variations.csv` is judged on its original comments only, e.g. the consensus-balanced sample:
-   `scripts/shell/run_judge.sh --sample-dir data/processed/consensus_n125 --only human detoxify qwen3:8b-annotator`.
+   `scripts/shell/run_judge.sh --sample-dir data/processed/consensus_n125_test --only human detoxify qwen3:8b-annotator`.
 5. **Kaleido values:** run `scripts/shell/run_kaleido.sh` to add the values, rights and duties Kaleido finds in each
    rationale to the `kaleido` column of `judgements.csv` (needs `HF_TOKEN` in `.env`; about 30 min).
 6. **Evaluate:** run `scripts/shell/run_eval.sh` for human alignment, context sensitivity and Kaleido values

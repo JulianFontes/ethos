@@ -30,7 +30,7 @@ TITLES = {"detoxify": "Detoxify", "gpt-6-luna-base": "gpt-6-luna, minimal prompt
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--sample-dir", default="data/processed/consensus_n125")
+    parser.add_argument("--sample-dir", default="data/processed/consensus_n125_test")
     parser.add_argument("--judges", nargs="+", default=["detoxify", "qwen3:8b-annotator"])
     parser.add_argument("--extra", nargs="+", default=[], help="judges to add, with their own bootstrap draws")
     parser.add_argument("--name", default=None,
