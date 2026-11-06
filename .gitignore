@@ -1,5 +1,6 @@
 # User specific directories
 data/*
+logs/
 
 # macOS
 .DS_Store

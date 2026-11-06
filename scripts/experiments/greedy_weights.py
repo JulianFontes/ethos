@@ -20,6 +20,7 @@ Usage:
 """
 import argparse
 import json
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -74,10 +75,12 @@ def main():
     for name in args.profiles:
         values = [v for v, _ in load_profile(f"prompts/profiles/{name}.yaml", taxonomy)]
         pick = min if GOAL[name] == "min" else max
+        progress = Progress(name, total=1 + args.rounds * len(values))
         best_w = np.full(len(values), 1 / len(values))
         best = score(values, best_w)
         record(log, name, 0, "start (equal weights)", values, best_w, best)
-        print(f"{name}: start {best:.2f}")
+        progress.step("start (equal weights)", best, best)
+        print(f"{name}: start {best:.2f}", flush=True)
         for rnd in range(1, args.rounds + 1):
             tried = []
             for k, v in enumerate(values):
@@ -85,18 +88,43 @@ def main():
                 w[k] += args.step
                 s = score(values, w)
                 record(log, name, rnd, v, values, w, s)
+                progress.step(f"round {rnd}/{args.rounds}, {k + 1}/{len(values)} {v}", s, best)
                 tried.append((s, v, w))
             s, v, w = pick(tried, key=lambda t: t[0])
-            print(f"{name}: round {rnd} best move -> {v} ({s:.2f}, current {best:.2f})")
+            print(f"{name}: round {rnd} best move -> {v} ({s:.2f}, current {best:.2f})", flush=True)
             if pick(s, best) == best:   # no improvement
-                print(f"{name}: no move improves; stopping")
+                print(f"{name}: no move improves; stopping", flush=True)
                 break
             best, best_w = s, w
         tuned = {"values": {v: round(float(w), 3) for v, w in zip(values, best_w)}}
         (args.out / f"{name}_tuned.yaml").write_text(
             f"# Tuned by scripts/experiments/greedy_weights.py; score {best:.2f} ({GOAL[name]} share TOXIC)\n"
             + yaml.safe_dump(tuned, sort_keys=False))
-        print(f"{name}: final {best:.2f} -> {format_profile(list(zip(values, best_w)))}")
+        print(f"{name}: final {best:.2f} -> {format_profile(list(zip(values, best_w)))} "
+              f"({progress.done} evaluations, {progress.elapsed()})", flush=True)
+
+
+class Progress:
+    """Prints one line per evaluation: count against the most this profile can take, scores, time left.
+
+    `total` is the worst case (every round runs); the search stops earlier when no move improves.
+    """
+    def __init__(self, name, total):
+        self.name, self.total, self.done, self.t0 = name, total, 0, time.time()
+
+    def elapsed(self):
+        return fmt(time.time() - self.t0)
+
+    def step(self, move, score, best):
+        self.done += 1
+        left = (time.time() - self.t0) / self.done * (self.total - self.done)
+        print(f"  [{self.name}] {self.done}/{self.total} max | {move}: {score:.2f} (best {best:.2f}) | "
+              f"{self.elapsed()} elapsed, <= {fmt(left)} left", flush=True)
+
+
+def fmt(seconds):
+    m, s = divmod(int(seconds), 60)
+    return f"{m}m{s:02d}s"
 
 
 def record(path, name, rnd, move, values, weights, score):
