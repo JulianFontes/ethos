@@ -8,6 +8,7 @@ Usage:
   python scripts/judge.py                                   # every judge in configs/judges.yaml
   python scripts/judge.py --only qwen3:8b-dmp               # only judges with these names
   python scripts/judge.py --limit 2                         # first 2 comments only
+  python scripts/judge.py --query "consensus < 0.7"         # only comments whose sample.csv row matches
   python scripts/judge.py --sample-dir data/processed/sample_n200   # override the config's sample_dir
 """
 import argparse
@@ -23,6 +24,8 @@ def main():
     p.add_argument("--sample-dir", default=None, help="override the config's sample_dir")
     p.add_argument("--only", nargs="+", default=None, help="only run judges with these names")
     p.add_argument("--limit", type=int, default=None, help="only judge the first N comments")
+    p.add_argument("--query", default=None, help='only judge comments matching this pandas query on sample.csv, '
+                                                 'e.g. "consensus < 0.7"')
     args = p.parse_args()
 
     sample_dir = args.sample_dir or load_config(args.config).get("sample_dir")
@@ -34,7 +37,7 @@ def main():
         raise SystemExit(f"unknown judge name in --only {args.only}; available: {names}")
     save_config(args.config, sample_dir)
     for cfg in judges:
-        run_judge(cfg, sample_dir, args.limit)
+        run_judge({**cfg, "query": args.query}, sample_dir, args.limit)
     print(f"judgements: {output_path(sample_dir)}")
 
 

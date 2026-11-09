@@ -1,5 +1,6 @@
 # User specific directories
 data/*
+logs/
 
 # macOS
 .DS_Store
@@ -14,6 +15,7 @@ dist/
 # Virtual environments
 .venv/
 venv/
+.venv.nosync/
 
 # Environment / secrets
 .env

@@ -1,11 +1,12 @@
 """Shared helpers for all judges.
 
 Every judge writes rows to one long CSV, data/judgements/<sample>/judgements.csv:
-    id, version, text, judge, score, decision, rationale, profile, kaleido
+    id, version, text, judge, score, decision, rationale, profile, kaleido, ratings
 `version` is "original" or one of the variation types; `judge` is the judge's name from its config
 (the human annotations are the `human` judge's rows, originals only); `profile` is the value profile
 a pluralistic judge was given (empty for other judges); `kaleido` holds the Kaleido values for the
-rationale, filled in later by scripts/kaleido_values.py.
+rationale, filled in later by scripts/kaleido_values.py; `ratings` holds an LLM annotator judge's individual
+ratings (JSON list; see ethos.judges.llm_judge).
 """
 import csv
 import shutil
@@ -16,7 +17,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
 VERSIONS = ["original", "consequentialist", "emotional", "relational"]
-COLUMNS = ["id", "version", "text", "judge", "score", "decision", "rationale", "profile", "kaleido"]
+COLUMNS = ["id", "version", "text", "judge", "score", "decision", "rationale", "profile", "kaleido", "ratings"]
 
 
 def load_config(path):
@@ -24,7 +25,7 @@ def load_config(path):
         return yaml.safe_load(f)
 
 
-LLM_TYPES = {"ollama", "ollama_dmp"}
+LLM_TYPES = {"ollama_minimal", "ollama_minimal_dmp"}
 
 
 def load_judges(path):
@@ -37,8 +38,13 @@ def load_judges(path):
 def load_versions(sample_dir):
     """One row per comment version: id, version, text (original plus each variation).
 
-    Everything comes from variations.csv, whose `comment_text` column is the original comment.
+    Everything comes from variations.csv, whose `comment_text` column is the original comment. A sample without
+    variations.csv (no variations generated yet) gives only its original comments, from sample.csv.
     """
+    if not (ROOT / sample_dir / "variations.csv").exists():
+        originals = pd.read_csv(ROOT / sample_dir / "sample.csv", usecols=["id", "comment_text"])
+        originals = originals.rename(columns={"comment_text": "text"}).assign(version="original")
+        return originals[["id", "version", "text"]].sort_values("id", ignore_index=True)
     wide = pd.read_csv(ROOT / sample_dir / "variations.csv", usecols=["id", "comment_text"] + VERSIONS[1:])
     wide = wide.rename(columns={"comment_text": "original"})
     long = wide.melt(id_vars="id", value_vars=VERSIONS, var_name="version", value_name="text")
@@ -50,9 +56,16 @@ def output_path(sample_dir):
     return ROOT / "data" / "judgements" / Path(sample_dir).name / "judgements.csv"
 
 
-def todo(sample_dir, judge, limit=None):
-    """Comment versions this judge still has to do (optionally only the first `limit` comments)."""
+def todo(sample_dir, judge, limit=None, query=None):
+    """Comment versions this judge still has to do.
+
+    Optionally only comments whose sample.csv row matches `query` (a pandas query, e.g. "consensus < 0.7"),
+    and only the first `limit` comments.
+    """
     versions = load_versions(sample_dir)
+    if query:
+        keep = pd.read_csv(ROOT / sample_dir / "sample.csv").query(query).id
+        versions = versions[versions.id.isin(keep)]
     if limit:
         versions = versions[versions.id.isin(versions.id.unique()[:limit])]
     path = output_path(sample_dir)
