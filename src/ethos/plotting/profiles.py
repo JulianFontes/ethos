@@ -36,9 +36,9 @@ def _as_written(scores):
 
 
 def _distance(ratings, human):
-    """Per comment |score - human score| x 100 (points), for no profile and each condition as written."""
+    """Per comment |score - human score| (0-1), for no profile and each condition as written."""
     m = _as_written(comment_scores(ratings))
-    return m.sub(human.loc[m.index], axis=0).abs() * 100
+    return m.sub(human.loc[m.index], axis=0).abs()
 
 
 def _name(condition):
@@ -130,7 +130,7 @@ def plot_profile_shift_weighting(ratings, path, scope, seed=0):
 def plot_profile_distance(ratings, human, path, scope, seed=0):
     """Each comment's distance from the human score, for no profile and each profile as written.
     human: Series of human scores indexed by comment id. Dots = comments, points = mean with 95% bootstrap interval."""
-    err = _distance(ratings, human) / 100
+    err = _distance(ratings, human)
     order = ["none"] + list(err.drop(columns="none").mean().sort_values().index)
     rng = np.random.default_rng(seed)
     idx = rng.integers(0, len(err), (2000, len(err)))
@@ -211,7 +211,7 @@ def plot_toxic_change(ratings, path, scope, percent=False):
 
 
 def plot_distance_by_consensus(ratings, human, consensus_bin, path, model="gpt-6-luna"):
-    """Average distance from the human score (points) per consensus bin: one dot per condition (weights as written;
+    """Average distance from the human score (0-1) per consensus bin: one dot per condition (weights as written;
     Tableau 10 colors, alphabetical, so they repeat past 10), no profile as a dotted line, and the closest (green ring)
     and furthest (red ring) condition in each bin labelled. human / consensus_bin: Series indexed by comment id."""
     err = _distance(ratings, human)
@@ -220,13 +220,15 @@ def plot_distance_by_consensus(ratings, human, consensus_bin, path, model="gpt-6
     g = err.groupby(bins).mean()
     conds = sorted(c for c in err if c != "none")
     names = [_name(c) for c in conds]
-    profiles = _is_profiles(conds)
-    unit, example = ("profile", "a profile from prompts/profiles") if profiles else \
-        ("value", 'one value, e.g. "Respect 1.00"')
     colors = [TABLEAU10[k % len(TABLEAU10)] for k in range(len(conds))]
     n_answers = int(ratings.groupby(["id", "condition"]).size().max())
+    sizes = ratings.loc[ratings.condition != "none", "profile"].str.count(";").add(1).unique()
+    n_values = str(sizes[0]) if len(sizes) == 1 else f"{sizes.min()}-{sizes.max()}"
+    given = "one moral value" if n_values == "1" else f"{n_values} moral values"
+    subtitle = (f"Each value-conditioned LLM ({model} given {given}) rated all {ratings.id.nunique()} comments "
+                f"{n_answers} times.")
     with plt.rc_context(STYLE):
-        fig, ax = plt.subplots(figsize=(10, 6))
+        fig, ax = plt.subplots(figsize=(11, 6.6))
         for xi, b in enumerate(levels):
             v, base = g.loc[b, conds].to_numpy(), g.loc[b, "none"]
             ax.scatter(np.full(len(v), xi), v, s=26, c=colors, lw=0.3, edgecolor="white", zorder=2)
@@ -234,30 +236,28 @@ def plot_distance_by_consensus(ratings, human, consensus_bin, path, model="gpt-6
             for i, ring, side in ((v.argmin(), GREEN, -1), (v.argmax(), RED, 1)):
                 ax.scatter(xi, v[i], s=60, facecolor="none", edgecolor=ring, lw=1.8, zorder=4)
                 # label above the furthest / below the closest; if that would land on the dotted line, put it past
-                near_line = v[i] > base - 4 if side > 0 else v[i] < base + 4
+                near_line = v[i] > base - 0.04 if side > 0 else v[i] < base + 0.04
                 y = (max if side > 0 else min)(v[i], base) if near_line else v[i]
                 ax.annotate(names[i], (xi, y), xytext=(0, 9 * side), textcoords="offset points", ha="center",
                             va="bottom" if side > 0 else "top", fontsize=8, color=INK)
         n = bins.value_counts()
         ax.set_xticks(range(len(levels)), [f"{b.replace('-', '–')}\n(n = {n[b]})" for b in levels])
         ax.set_xlim(-0.5, len(levels) - 0.5)
-        ax.set_ylim(0, 58)
+        ax.set_ylim(0, 1)
         ax.grid(axis="x", visible=False)
         ax.set_xlabel("Human Annotator Consensus")
-        ax.set_ylabel("Average Distance from Human Score (points)")
-        handles = [Line2D([], [], color=INK, lw=2.5, ls=DOTTED, label="No moral value (base)"),
+        ax.set_ylabel("Average Distance from Human Score\n(|model score − human score|)")
+        handles = [Line2D([], [], color=INK, lw=2.5, ls=DOTTED, label=f"{model}, no moral value in the prompt (base)"),
                    Line2D([], [], marker="o", ls="", color=TABLEAU10[0], ms=6,
-                          label=f"{model} prompted with one moral {unit}\n(one color per {unit})"),
+                          label=f"Value-conditioned LLM, {given}\n({len(conds)} in total, one color each)"),
                    Line2D([], [], marker="o", ls="", mfc="none", mec=GREEN, mew=1.8, ms=7,
-                          label=f"Closest {unit} in the band"),
+                          label="Closest in the band"),
                    Line2D([], [], marker="o", ls="", mfc="none", mec=RED, mew=1.8, ms=7,
-                          label=f"Furthest {unit} in the band")]
-        ax.legend(handles=handles, loc="lower left", fontsize=8.5, frameon=False, labelspacing=0.9)
-        what = "Each Moral Profile" if profiles else "Each Single Moral Value"
-        ax.set_title(f"Distance from Human Score: {model} Prompted with {what}", loc="left", color=INK, fontsize=13,
-                     fontweight="bold", pad=34)
-        ax.text(0, 1.02, f"Each dot is the model given {example} and scored on that band's comments "
-                f"({n_answers} answers each).\nLower = closer to the annotators. Each {unit} keeps its color in "
-                "every band.", transform=ax.transAxes, fontsize=9, color=INK2)
+                          label="Furthest in the band")]
+        ax.legend(handles=handles, loc="lower left", bbox_to_anchor=(-0.01, 1.0), ncol=4, fontsize=8,
+                  frameon=False, columnspacing=1.0, handletextpad=0.4, handlelength=1.8)
+        ax.set_title("Human-LLM Alignment by Annotator Consensus", loc="left", color=INK, fontsize=13,
+                     fontweight="bold", pad=52)
+        ax.text(0, 1.115, subtitle, transform=ax.transAxes, fontsize=9, color=INK2)
         fig.tight_layout()
         _save(fig, path)
