@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from ethos.data import consensus
-from ethos.plotting.sample_overview import STYLE, INK, INK2, GRID, SURFACE
+from ethos.plotting.style import GRID, INK, INK2, STYLE, SURFACE
 
 BLUE = "#2a78d6"
 
@@ -64,50 +64,6 @@ def plot_consensus_vs_toxicity(p, path, scope, low=0.6):
         plt.close(fig)
 
 
-def plot_score_gap_by_consensus(df, judges, path, scope, edges=(0.5, 0.6, 0.7, 0.8, 0.9, 1.0), n_boot=2000, seed=0):
-    """Save one panel per judge: (judge score - human score) against human consensus.
-
-    df: one row per comment with columns `human`, `consensus` and one score column per judge in `judges`
-    (a dict {column: panel title}). Dots are comments; the line is the mean gap per consensus bin with a
-    95% bootstrap interval. Above 0 = the judge rates the comment more toxic than the annotators did.
-    """
-    rng = np.random.default_rng(seed)
-    edges = np.asarray(edges, dtype=float)
-    mids = (edges[:-1] + edges[1:]) / 2
-    bins = np.clip(np.digitize(df.consensus, edges[1:-1]), 0, len(mids) - 1)
-    gaps = {col: (df[col] - df.human).to_numpy() for col in judges}
-    lo = min(g.min() for g in gaps.values())
-    hi = max(g.max() for g in gaps.values())
-    with plt.rc_context(STYLE):
-        fig, axes = plt.subplots(1, len(judges), figsize=(5.4 * len(judges), 5), sharey=True, squeeze=False)
-        for ax, (col, name) in zip(axes[0], judges.items()):
-            g = gaps[col]
-            ax.axhline(0, color=INK2, lw=1)
-            ax.scatter(df.consensus, g, s=22, color=BLUE, alpha=0.35, lw=0)
-            means, cis = [], []
-            for b in range(len(mids)):
-                x = g[bins == b]
-                boot = x[rng.integers(0, len(x), (n_boot, len(x)))].mean(axis=1)
-                means.append(x.mean())
-                cis.append(np.percentile(boot, [2.5, 97.5]))
-            cis = np.array(cis)
-            ax.fill_between(mids, cis[:, 0], cis[:, 1], color=BLUE, alpha=0.18, lw=0)
-            ax.plot(mids, means, color=BLUE, lw=2.2, marker="o", ms=6, markeredgecolor="white", markeredgewidth=1.5)
-            ax.set_title(name, loc="left", fontsize=11.5, fontweight="bold", color=INK)
-            ax.set_xlim(0.5, 1)
-            ax.set_ylim(min(lo, -0.1) - 0.05, hi + 0.12)
-            ax.set_xlabel("Human consensus  max(p, 1 − p)")
-        axes[0, 0].set_ylabel("Judge score − human score")
-        fig.suptitle("How far each judge's toxicity score is from the annotators', by annotator consensus",
-                     x=0.01, ha="left", fontsize=13, fontweight="bold", color=INK)
-        fig.text(0.01, 0.905, f"{scope}. Dots are comments; line = mean per 0.1 consensus bin with 95% bootstrap "
-                 "interval. Above 0 = judge rates it more toxic than the annotators.", fontsize=9, color=INK2)
-        fig.tight_layout(rect=(0, 0, 1, 0.89))
-        path.parent.mkdir(parents=True, exist_ok=True)
-        fig.savefig(path, dpi=150)
-        plt.close(fig)
-
-
 JUDGE_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"]   # same categorical order as the other figures
 
 
@@ -141,11 +97,12 @@ def gap_by_bin(df, judges, edges=(0.5, 0.6, 0.7, 0.8, 0.9, 1.0), n_boot=2000, se
     return rows
 
 
-def plot_score_gap_by_bin(table, judges, path, scope, absolute=True):
+def plot_score_gap_by_bin(table, judges, path, scope, absolute=True, colors=None):
     """Save a line plot of the bootstrap mean |judge - human| score per consensus bin, with 95% interval error bars.
 
     table: rows from gap_by_bin; judges: dict {judge column: legend name}. absolute=False plots the signed gap
-    instead. Judges are nudged apart on x so their error bars don't overlap.
+    instead. colors: optional {judge column: color}, else the JUDGE_COLORS order. Judges are nudged apart on x so
+    their error bars don't overlap.
     """
     key = "abs_" if absolute else ""
     labels = list(dict.fromkeys(r["bin"] for r in table))
@@ -160,7 +117,7 @@ def plot_score_gap_by_bin(table, judges, path, scope, absolute=True):
             get = lambda field: np.array([rows[b][field] for b in labels if b in rows])
             m = get(f"{key}boot_mean")
             err = np.clip([m - get(f"{key}ci_lo"), get(f"{key}ci_hi") - m], 0, None)   # rounding can give -1e-17
-            color = JUDGE_COLORS[k % len(JUDGE_COLORS)]
+            color = (colors or {}).get(col, JUDGE_COLORS[k % len(JUDGE_COLORS)])
             ax.errorbar(x[have] + offsets[k], m, yerr=err, color=color, lw=2, marker="o", ms=8, markeredgecolor=SURFACE,
                         markeredgewidth=2, elinewidth=1.5, capsize=4, capthick=1.5, label=name)
         n = [max(r["n"] for r in table if r["bin"] == b) for b in labels]

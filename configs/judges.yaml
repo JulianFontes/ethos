@@ -1,6 +1,7 @@
 # Every judge, run in order by scripts/judge.py. Each `name` is the value written to the `judge` column; `type`
 # picks the implementation (human, detoxify, ollama_minimal / openai_minimal).
-# Older judges (allow/remove base and DMP, annotator-instruction judges) are archived in .artifact/configs/judges.yaml.
+# Older judges (allow/remove base and DMP, annotator-instruction judges) are archived in .archive/configs/judges.yaml.
+# Fixed-profile experiments run through scripts/experiments/profile_signal.py instead.
 
 # Sample to judge: its sample.csv (comments and human labels); results go to data/judgements/<folder name>/.
 sample_dir: data/processed/consensus_n125_test
@@ -44,35 +45,6 @@ judges:
     top_k: 10
     equal_weights: true
     seed: 0                                  # rating i uses seed + i, combined with the comment id
-    samples: 10
-    temperature: 1.0
-    reasoning_effort: none
-    threshold: 0.5
-    workers: 8
-
-  # Steering: the same DMP judge with one fixed 10-value profile for every rating, using the profile's own weights
-  # (prompts/profiles/*.yaml), to test whether the profile controls the direction of the decision.
-  # Expression should lower TOXIC answers, protective raise them.
-  - name: gpt-6-luna-dmp-expression
-    type: openai_minimal_dmp
-    model: gpt-6-luna
-    prompt: prompts/judge_minimal_pluralistic.txt
-    values: prompts/taxonomy-values.txt
-    profile: prompts/profiles/expression.yaml
-    equal_weights: false
-    samples: 10
-    temperature: 1.0
-    reasoning_effort: none
-    threshold: 0.5
-    workers: 8
-
-  - name: gpt-6-luna-dmp-protective
-    type: openai_minimal_dmp
-    model: gpt-6-luna
-    prompt: prompts/judge_minimal_pluralistic.txt
-    values: prompts/taxonomy-values.txt
-    profile: prompts/profiles/protective.yaml
-    equal_weights: false
     samples: 10
     temperature: 1.0
     reasoning_effort: none

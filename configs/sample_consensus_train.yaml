@@ -1,4 +1,4 @@
-# Config for scripts/extract_consensus_sample.py: the train counterpart of configs/sample_consensus.yaml, with the
+# Config for scripts/data/extract_consensus_sample.py: the train counterpart of configs/sample_consensus_test.yaml, with the
 # same filters (top-level comments, >= 30 raters, deduplicated) and bins, for tuning without touching the test sample.
 
 source: data/processed/toplevel_min30/comments.csv

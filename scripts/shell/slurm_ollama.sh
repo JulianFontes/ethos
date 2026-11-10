@@ -3,8 +3,8 @@
 # The code already talks to http://localhost:11434, so nothing else changes.
 #
 # Usage (from the project root):
-#   sbatch scripts/shell/slurm_ollama.sh scripts/shell/run_judge.sh --only qwen3:8b-annotator
-#   sbatch scripts/shell/slurm_ollama.sh uv run python scripts/experiments/greedy_weights.py --model qwen3:8b --workers 4
+#   sbatch scripts/shell/slurm_ollama.sh scripts/shell/run_judge.sh --only <judge name>
+#   sbatch scripts/shell/slurm_ollama.sh uv run python scripts/experiments/profile_signal.py --model qwen3:8b --workers 4 --out data/experiments/<run>
 #   sbatch -p gpu --time=24:00:00 scripts/shell/slurm_ollama.sh ...      # longer runs (gpu_test caps at 12h)
 #
 #SBATCH --job-name=ethos-ollama

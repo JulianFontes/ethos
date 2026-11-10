@@ -8,11 +8,11 @@ Each comment's profile is seeded by its id, so all its versions (and every model
 Only G0 is a placeholder (marked TODO below); the Dirichlet sampling, top-k and renormalization
 stay as they are when it is replaced.
 """
-from pathlib import Path
 
 import numpy as np
 
-ROOT = Path(__file__).resolve().parents[3]  # project root; not imported from ethos.judges to avoid a circular import
+from ethos.paths import ROOT
+
 
 def load_values(path):
     return [v.strip() for v in (ROOT / path).read_text().splitlines() if v.strip()]

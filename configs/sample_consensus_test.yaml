@@ -1,5 +1,5 @@
-# Config for scripts/extract_consensus_sample.py: an equal number of test comments per consensus bin.
-# Draws from the dataset built by scripts/extract_splits.py (top-level comments, >= 30 raters, deduplicated).
+# Config for scripts/data/extract_consensus_sample.py: an equal number of test comments per consensus bin.
+# Draws from the dataset built by scripts/data/extract_splits.py (top-level comments, >= 30 raters, deduplicated).
 
 source: data/processed/toplevel_min30/comments.csv
 split: test           # Detoxify was trained on train, so sample from test

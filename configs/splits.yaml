@@ -1,4 +1,4 @@
-# Config for scripts/extract_splits.py: train/test datasets from Jigsaw's own train/test split.
+# Config for scripts/data/extract_splits.py: train/test datasets from Jigsaw's own train/test split.
 
 min_annotators: 30    # minimum toxicity_annotator_count (inclusive)
 top_level_only: true  # keep parent (top-level) comments only: drop replies (parent_id set)

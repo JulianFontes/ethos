@@ -10,8 +10,8 @@ instead, leaving the main files alone. Extra judges get their own bootstrap draw
 are identical to the main plot's.
 
 Usage:
-    python scripts/eval_consensus_gap.py                                        # detoxify + qwen3:8b-annotator
-    python scripts/eval_consensus_gap.py --extra qwen3:8b-annotator-dmp --name dmp
+    python scripts/plots/eval_consensus_gap.py                              # detoxify + gpt-6-luna-base
+    python scripts/plots/eval_consensus_gap.py --judges gpt-6-luna-base gpt-6-luna-dmp-random --name gpt_base_vs_random_dmp
 """
 import argparse
 from pathlib import Path
@@ -19,19 +19,22 @@ from pathlib import Path
 import pandas as pd
 
 from ethos.judges.core import output_path
+from ethos.paths import ROOT
 from ethos.plotting.consensus import gap_by_bin, plot_score_gap_by_bin
 
-ROOT = Path(__file__).resolve().parents[1]
 TITLES = {"detoxify": "Detoxify", "gpt-6-luna-base": "gpt-6-luna, minimal prompt (10 ratings)", "gpt-6-luna-dmp-random": "gpt-6-luna + random DMP profiles (10 ratings)",
           "gpt-6-luna-dmp-expression": "gpt-6-luna + expression profile (10 ratings)",
           "gpt-6-luna-dmp-protective": "gpt-6-luna + protective profile (10 ratings)", "qwen3:8b-annotator": "qwen3:8b, annotator instructions (10 ratings)",
           "qwen3:8b-annotator-dmp": "qwen3:8b + moral profiles (10 profiles)"}
 
+# fixed colors so a judge looks the same in every version of the plot (others follow JUDGE_COLORS order)
+COLORS = {"detoxify": "#2a78d6", "gpt-6-luna-base": "#eb6834", "gpt-6-luna-dmp-random": "#1baf7a"}
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--sample-dir", default="data/processed/consensus_n125_test")
-    parser.add_argument("--judges", nargs="+", default=["detoxify", "qwen3:8b-annotator"])
+    parser.add_argument("--judges", nargs="+", default=["detoxify", "gpt-6-luna-base"])
     parser.add_argument("--extra", nargs="+", default=[], help="judges to add, with their own bootstrap draws")
     parser.add_argument("--name", default=None,
                         help="output suffix: writes score_gap_by_bin_<name>.png/.csv (keeps the main plot)")
@@ -54,7 +57,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(table).to_csv(out / f"{stem}.csv", index=False)
     plot_score_gap_by_bin(table, {c: TITLES.get(c, c) for c in args.judges + args.extra}, out / f"{stem}.png",
-                          f"{Path(args.sample_dir).name}: {len(df)} test comments")
+                          f"{Path(args.sample_dir).name}: {len(df)} test comments", colors=COLORS)
     print(pd.DataFrame(table).round(3).to_string(index=False))
     print(f"wrote {stem}.png and {stem}.csv to {out.relative_to(ROOT)}/")
 

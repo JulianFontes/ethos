@@ -1,8 +1,7 @@
 """Human judge: the Civil Comments annotations, written as rows like any other judge.
 
 score = share of annotators who rated the comment toxic (`toxicity` in sample.csv);
-decision = "remove" when score >= threshold. Humans only labeled the original comments,
-so this judge writes `version = original` rows only (no human labels exist for variations).
+decision = "remove" when score >= threshold.
 """
 import pandas as pd
 from tqdm import tqdm
