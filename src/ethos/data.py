@@ -1,5 +1,6 @@
 """Data processing for Civil Comments, shared by the scripts in scripts/: load the raw Jigsaw files, filter the
-train / test comments, compute consensus, bin and sample."""
+train / test comments, compute consensus, bin and sample, embed comments, and load the value policy's training
+data."""
 from pathlib import Path
 
 import numpy as np
@@ -103,3 +104,43 @@ def load_embeddings(sample_dir=None):
     ids = pd.read_csv(ROOT / sample_dir / "sample.csv", usecols=["id"]).id
     emb = pd.read_parquet(path, filters=[("id", "in", ids.tolist())])   # reads only the sample's rows
     return emb.loc[ids]                                                  # in sample.csv order
+
+
+# --- value policy training data --------------------------------------------------------------------------------
+# The single-value run (scripts/experiments/profile_signal.py --single-values): every comment rated 10 times with each
+# of the 60 taxonomy values alone, plus no value ("none").
+
+N_VALUES, N_ANSWERS = 60, 10
+
+def load_scores(sample_dir):
+    """Read <sample_dir>/single_values/scores.csv and return (rows, base):
+
+    rows  one row per (comment, value), 60 per comment: id, moral_value, llm_toxicity, human_toxicity, consensus_bin,
+          and the target distance = |llm_toxicity - human_toxicity|
+    base  the same columns for the no-value rows (moral_value "none"), one per comment; used only as a baseline
+    """
+    scores = pd.read_csv(ROOT / sample_dir / "single_values" / "scores.csv")
+    cols = ["id", "moral_value", "llm_toxicity", "human_toxicity", "consensus_bin"]
+    scores = scores[cols].assign(distance=lambda d: (d.llm_toxicity - d.human_toxicity).abs())
+    base = scores[scores.moral_value == "none"].set_index("id")
+    rows = scores[scores.moral_value != "none"].sort_values(["id", "moral_value"], ignore_index=True)
+
+    # fail loudly if the table is not what the policy expects
+    n_comments = rows.id.nunique()
+    per_comment = rows.groupby("id").moral_value.nunique()
+    assert (per_comment == N_VALUES).all(), f"expected {N_VALUES} values per comment, got {per_comment.unique()}"
+    assert set(base.index) == set(rows.id), "every comment needs a no-value ('none') row"
+    assert not rows.isna().any().any() and not base.isna().any().any(), "missing values in scores.csv"
+    assert len(rows) == n_comments * N_VALUES
+    return rows, base
+
+
+def feature_matrix(rows, embeddings):
+    """Model inputs, one row per row of `rows`: the comment's embedding (emb_0 ... emb_767) followed by one column per
+    moral value (1 for the row's value, 0 otherwise). No scores: the human score and the LLM's answers stay out."""
+    missing = set(rows.id) - set(embeddings.index)
+    assert not missing, f"{len(missing)} comments have no embedding"
+    emb = embeddings.loc[rows.id].to_numpy()
+    values = pd.get_dummies(rows.moral_value, prefix="value", dtype=np.float32)
+    return pd.DataFrame(np.hstack([emb, values.to_numpy()]), index=rows.index,
+                        columns=list(embeddings.columns) + list(values.columns))
