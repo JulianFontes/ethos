@@ -9,17 +9,26 @@ Conditions (each asked `--samples` times per comment, minimal prompt, plus a no-
 
 Comments: the `--n-comments` train comments whose random-DMP answers were most mixed, or `--all` of them, or `--ids`.
 
-Writes to <out>/: ratings.csv (one row per answer; re-running skips answers already there) and summary.csv (share
-TOXIC per condition), then prints permutation tests (answers shuffled between conditions within each comment):
-whether profiles differ from no profile and from each other, and whether weightings differ within a profile.
-Plot a run with scripts/plots/plot_profiles.py --results <out>.
+Data (`--data`, a folder in the sample, e.g. data/processed/consensus_n125_train/single_values):
+  ratings.csv   one row per answer; re-running skips answers already there
+  scores.csv    one row per comment and condition: LLM toxicity score next to the human score
+Results (`--results`, an experiment folder, optional):
+  summary.csv   share TOXIC per condition
+  sources.yaml  which data the results came from
+and prints permutation tests (answers shuffled between conditions within each comment): whether profiles differ from
+no profile and from each other, and whether weightings differ within a profile.
+Plot a run with scripts/plots/plot_profiles.py --data <data> --out <results>.
 
 Usage:
-    python scripts/experiments/profile_signal.py --out data/experiments/02_profile_signal/probe_20_comments
-    python scripts/experiments/profile_signal.py --all --weightings as-is reversed --out data/experiments/02_profile_signal/train_125_comments
-    python scripts/experiments/profile_signal.py --all --single-values --out data/experiments/03_single_values
-    python scripts/experiments/profile_signal.py --ids 5705144 --out /tmp/one_comment          # smoke test
-    python scripts/experiments/profile_signal.py --analyze-only --out data/experiments/03_single_values
+    python scripts/experiments/profile_signal.py --data data/processed/consensus_n125_train/profiles_probe_20 \
+        --results data/experiments/02_profile_signal/probe_20_comments
+    python scripts/experiments/profile_signal.py --all --weightings as-is reversed \
+        --data data/processed/consensus_n125_train/profiles --results data/experiments/02_profile_signal/train_125_comments
+    python scripts/experiments/profile_signal.py --all --single-values \
+        --data data/processed/consensus_n125_train/single_values --results data/experiments/03_single_values
+    python scripts/experiments/profile_signal.py --ids 5705144 --data /tmp/one_comment          # smoke test, no results
+    python scripts/experiments/profile_signal.py --analyze-only --data data/processed/consensus_n125_train/single_values \
+        --results data/experiments/03_single_values
 """
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -33,7 +42,8 @@ from ethos.judges.llm_judge import SCHEMA, load_profile
 from ethos.llm import ollama_client, openai_client
 from ethos.llm.dmp import format_profile, load_values
 from ethos.paths import ROOT, TRAIN_SAMPLE
-from ethos.scores import toxicity_score
+from ethos.scores import score_table, toxicity_score
+from ethos.sources import write_sources
 
 RANDOM_DMP = ROOT / "data/judgements/consensus_n125_train/judgements.csv"
 BASE_PROMPT = ROOT / "prompts/judge_minimal.txt"
@@ -115,12 +125,17 @@ def permutation_p(r, conds, rng, n_perm=2000):
     return float(np.mean(np.array(null) >= observed))
 
 
-def analyze(path, out):
-    r = pd.read_csv(path)
+def analyze(data, results=None, sample_path=TRAIN_SAMPLE / "sample.csv"):
+    """Write <data>/scores.csv; with `results`, also <results>/summary.csv and sources.yaml; print the tests."""
+    r = pd.read_csv(data / "ratings.csv")
     r["toxic"] = r.toxic.astype(bool)
+    score_table(r, pd.read_csv(sample_path)).to_csv(data / "scores.csv", index=False)
     table = toxicity_score(r, by="condition").rename("share_toxic").to_frame()
     table["shift_vs_none"] = table.share_toxic - table.share_toxic["none"]
-    table.to_csv(out / "summary.csv")
+    if results:
+        results.mkdir(parents=True, exist_ok=True)
+        table.to_csv(results / "summary.csv")
+        write_sources(results, [data / "ratings.csv", sample_path])
     pd.set_option("display.width", 200)
     print(f"\n{r.id.nunique()} comments, {len(r)} answers. Share TOXIC per condition (none = no profile):")
     print(table.sort_values("share_toxic").round(3).to_string())
@@ -139,7 +154,9 @@ def analyze(path, out):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--out", type=Path, required=True, help="run folder, e.g. data/experiments/03_single_values")
+    p.add_argument("--data", type=Path, required=True,
+                   help="where the answers go, e.g. data/processed/consensus_n125_train/single_values")
+    p.add_argument("--results", type=Path, help="experiment folder for summary.csv, e.g. data/experiments/03_single_values")
     p.add_argument("--model", default="gpt-6-luna", help="gpt-* through the OpenAI API, anything else through Ollama")
     p.add_argument("--sample", type=Path, default=TRAIN_SAMPLE / "sample.csv", help="sample.csv with the comments")
     p.add_argument("--n-comments", type=int, default=20, help="the most uncertain comments (default)")
@@ -151,15 +168,14 @@ def main():
     p.add_argument("--workers", type=int, default=16)
     p.add_argument("--analyze-only", action="store_true")
     args = p.parse_args()
-    args.out.mkdir(parents=True, exist_ok=True)
-    path = args.out / "ratings.csv"
+    args.data.mkdir(parents=True, exist_ok=True)
 
     if not args.analyze_only:
         texts = pd.read_csv(args.sample).set_index("id").comment_text
         ids = args.ids or (texts.index.tolist() if args.all else uncertain_comments(args.n_comments))
         conds = conditions(load_values("prompts/taxonomy-values.txt"), args.weightings, args.single_values)
-        collect(path, conds, texts.loc[ids], args.samples, args.model, args.workers)
-    analyze(path, args.out)
+        collect(args.data / "ratings.csv", conds, texts.loc[ids], args.samples, args.model, args.workers)
+    analyze(args.data, args.results, args.sample)
 
 
 if __name__ == "__main__":

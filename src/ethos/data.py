@@ -78,3 +78,28 @@ def sample_per_bin(pool, bin_col, per_bin, seed):
     if short:
         raise ValueError(f"not enough comments in bin(s) {short}; lower per_bin or change the bins")
     return pd.concat(pool[pool[bin_col] == label].sample(per_bin, random_state=seed) for label in labels)
+
+
+# --- sentence embeddings ---------------------------------------------------------------------------------------
+
+EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"   # general-purpose Sentence-BERT, not toxicity-trained
+
+def embed(texts, model_name=EMBEDDING_MODEL, batch_size=32):
+    """Sentence-BERT embeddings of `texts` (a Series indexed by comment id) as a DataFrame: one row per comment,
+    columns emb_0 ... emb_<d-1>, unit length (so a dot product is the cosine similarity)."""
+    from sentence_transformers import SentenceTransformer  # imported here: slow to load, only this step needs it
+
+    model = SentenceTransformer(model_name)
+    vectors = model.encode(texts.tolist(), batch_size=batch_size, normalize_embeddings=True, show_progress_bar=True)
+    return pd.DataFrame(vectors, index=texts.index, columns=[f"emb_{i}" for i in range(vectors.shape[1])])
+
+def load_embeddings(sample_dir=None):
+    """Sentence-BERT embeddings indexed by comment id, from data/processed/comments/embeddings/embeddings.parquet (written by
+    scripts/data/embed_comments.py). With `sample_dir`, only that sample's comments, in sample.csv order."""
+    from ethos.paths import COMMENTS, EMBEDDINGS
+    path = EMBEDDINGS / "embeddings.parquet"
+    if sample_dir is None or (ROOT / sample_dir) == COMMENTS:
+        return pd.read_parquet(path)
+    ids = pd.read_csv(ROOT / sample_dir / "sample.csv", usecols=["id"]).id
+    emb = pd.read_parquet(path, filters=[("id", "in", ids.tolist())])   # reads only the sample's rows
+    return emb.loc[ids]                                                  # in sample.csv order

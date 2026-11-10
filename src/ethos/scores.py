@@ -30,3 +30,23 @@ def toxicity_score(answers, by=None):
         return float(toxic.mean())
     keys = [by] if isinstance(by, str) else list(by)
     return toxic.groupby([answers[k] for k in keys]).mean()
+
+
+def score_table(ratings, sample):
+    """One row per comment and condition: the LLM toxicity score next to the human score.
+
+    ratings: answers from scripts/experiments/profile_signal.py (id, condition, toxic); sample: its sample.csv.
+    Columns: id, comment, moral_value ("none" = no value in the prompt; profiles keep their file name), weighting,
+    llm_toxicity, human_toxicity, n_answers, consensus, consensus_bin.
+    """
+    scores = toxicity_score(ratings, by=["id", "condition"]).rename("llm_toxicity")
+    n = ratings.groupby(["id", "condition"]).size().rename("n_answers")
+    t = pd.concat([scores, n], axis=1).reset_index()
+    split = t.condition.str.split("|", n=1, expand=True)
+    t["moral_value"], t["weighting"] = split[0], split[1] if 1 in split else None
+    s = sample.set_index("id")
+    t = t.join(s[["comment_text", "toxicity", "consensus", "consensus_bin"]], on="id")
+    t = t.rename(columns={"comment_text": "comment", "toxicity": "human_toxicity"})
+    cols = ["id", "comment", "moral_value", "weighting", "llm_toxicity", "human_toxicity", "n_answers", "consensus",
+            "consensus_bin"]
+    return t[cols].sort_values(["id", "moral_value", "weighting"], na_position="first", ignore_index=True)

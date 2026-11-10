@@ -1,14 +1,15 @@
 """Plot each comment's toxicity score against how many annotators selected each attribute (raw, one dot per comment).
 
-Reads <data_dir>/comments.csv (built by scripts/data/extract_splits.py) and writes, for each split:
-  <data_dir>/figures/attributes_vs_toxicity_<split>.png              x = toxicity score
-  <data_dir>/figures/attributes_vs_toxicity_consensus_<split>.png    the same, plus a row with x = consensus
-  <data_dir>/figures/attributes_by_bin_<split>.png                    average per consensus bin (top) and toxicity bin
-  <data_dir>/figures/attributes_by_bin_<split>.csv                    the numbers behind it
+Reads <data_dir>/comments.csv (built by scripts/data/extract_splits.py) and writes to
+data/experiments/dataset/attributes/ (plus sources.yaml), for each split:
+  attributes_vs_toxicity_<split>.png              x = toxicity score
+  attributes_vs_toxicity_consensus_<split>.png    the same, plus a row with x = consensus
+  attributes_by_bin_<split>.png                    average per consensus bin (top) and toxicity bin
+  attributes_by_bin_<split>.csv                    the numbers behind it
 and, from the individual annotator votes (train only, <data_dir>/train_annotations.csv):
-  <data_dir>/figures/attribute_votes_by_consensus_train.png           votes per consensus bin: said toxic / not toxic,
+  attribute_votes_by_consensus_train.png           votes per consensus bin: said toxic / not toxic,
                                                                       split by whether the attribute was selected
-  <data_dir>/figures/attribute_votes_by_consensus_train.csv           the counts behind it
+  attribute_votes_by_consensus_train.csv           the counts behind it
 
 Usage:
     python scripts/plots/plot_attributes.py                     # train and test together
@@ -18,7 +19,7 @@ import argparse
 
 import pandas as pd
 
-from ethos.paths import ROOT
+from ethos.paths import EXPERIMENTS, ROOT
 from ethos.plotting.attributes import (
     ATTRIBUTES,
     attribute_votes_by_consensus,
@@ -27,25 +28,27 @@ from ethos.plotting.attributes import (
     plot_attributes_by_bin,
     plot_attributes_vs_toxicity,
 )
+from ethos.sources import write_sources
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--data-dir", default="data/processed/toplevel_min30")
+    parser.add_argument("--data-dir", default="data/processed/comments")
+    parser.add_argument("--out", default=EXPERIMENTS / "dataset" / "attributes")
     parser.add_argument("--splits", nargs="+", default=["all"], help="train, test and/or all (both together)")
     args = parser.parse_args()
 
-    data_dir = ROOT / args.data_dir
+    data_dir, out = ROOT / args.data_dir, ROOT / args.out
     comments = pd.read_csv(data_dir / "comments.csv", usecols=["split", "toxicity", "consensus", *ATTRIBUTES])
     for split in args.splits:
         df = comments if split == "all" else comments[comments.split == split]
         scope = "top-level comments with ≥30 annotators" + (", train + test" if split == "all" else f", {split}")
         for name, x_cols in (("attributes_vs_toxicity", ("toxicity",)),
                              ("attributes_vs_toxicity_consensus", ("toxicity", "consensus"))):
-            path = data_dir / "figures" / f"{name}_{split}.png"
+            path = out / f"{name}_{split}.png"
             plot_attributes_vs_toxicity(df, path, scope, x_cols)
             print(f"wrote {path.relative_to(ROOT)}")
-        path = data_dir / "figures" / f"attributes_by_bin_{split}.png"
+        path = out / f"attributes_by_bin_{split}.png"
         plot_attributes_by_bin(df, path, scope)
         by_consensus, by_toxicity = attributes_by_bin(df)
         pd.concat({"consensus": by_consensus.reset_index().rename(columns={"cbin": "bin"}),
@@ -58,10 +61,11 @@ def main():
         consensus = pd.read_csv(data_dir / "comments.csv", usecols=["id", "consensus"]).set_index("id").consensus
         votes = pd.read_csv(votes_path, usecols=["id", "toxic", *ATTRIBUTES])
         counts = attribute_votes_by_consensus(votes, consensus)
-        path = data_dir / "figures" / "attribute_votes_by_consensus_train.png"
+        path = out / "attribute_votes_by_consensus_train.png"
         counts.to_csv(path.with_suffix(".csv"), index=False)
         plot_attribute_votes_by_consensus(counts, path)
         print(f"wrote {path.relative_to(ROOT)} and .csv")
+    write_sources(out, [data_dir / "comments.csv"] + ([votes_path] if votes_path.exists() else []))
 
 
 if __name__ == "__main__":

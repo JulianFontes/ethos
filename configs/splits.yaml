@@ -4,4 +4,4 @@ min_annotators: 30    # minimum toxicity_annotator_count (inclusive)
 top_level_only: true  # keep parent (top-level) comments only: drop replies (parent_id set)
 drop_test_overlap: true  # drop test comments whose text also appears in train (avoids leakage)
 
-output_dir: data/processed/toplevel_min30   # relative to the project root
+output_dir: data/processed/comments   # relative to the project root

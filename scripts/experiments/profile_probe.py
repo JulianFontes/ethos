@@ -14,14 +14,16 @@ rated with the minimal prompt (the same prompt and answer format as ethos.judges
 
 score = share of ratings that are TOXIC. Older probes (annotator instructions, reasoning, thinking) are in .archive/.
 
-Writes to the --out folder (default data/experiments/01_profile_probe/<set>/):
+Data (--data, default data/processed/consensus_n125_test/profile_probe/<set>/):
   ratings.csv   one row per rating (id, model, condition, rating number, profile, evaluation, rationale)
+Results (--results, default data/experiments/01_profile_probe/<set>/):
   summary.csv   score per comment and condition, with the human score and Detoxify
+  sources.yaml  which data the summary came from
 Re-running skips ratings already in ratings.csv.
 
 Usage:
     python scripts/experiments/profile_probe.py --set minimal_compare --equal-weights --model gpt-6-luna --workers 8
-    python scripts/experiments/profile_probe.py --set minimal --ids 7182289 --scale 0.1 --out /tmp/probe   # smoke test
+    python scripts/experiments/profile_probe.py --set minimal --ids 7182289 --scale 0.1 --data /tmp/probe --results /tmp/probe   # smoke test
 """
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -35,6 +37,7 @@ from ethos.llm import ollama_client, openai_client
 from ethos.llm.dmp import format_profile, load_values, sample_profile
 from ethos.paths import ROOT
 from ethos.scores import toxicity_score
+from ethos.sources import write_sources
 
 SAMPLE = ROOT / "data/processed/consensus_n125_test/sample.csv"
 JUDGEMENTS = ROOT / "data/judgements/consensus_n125_test/judgements.csv"
@@ -66,18 +69,20 @@ def main():
     p.add_argument("--equal-weights", action="store_true", help="give every profile value the same weight")
     p.add_argument("--scale", type=float, default=1.0, help="multiply ratings per condition (smoke test: 0.1)")
     p.add_argument("--workers", type=int, default=4, help="calls in flight")
-    p.add_argument("--out", type=Path, default=None, help="output folder (default: data/experiments/01_profile_probe/<set>)")
+    p.add_argument("--data", type=Path, help="answers folder (default: data/processed/consensus_n125_test/profile_probe/<set>)")
+    p.add_argument("--results", type=Path, help="summary folder (default: data/experiments/01_profile_probe/<set>)")
     args = p.parse_args()
     conditions = SETS[args.set]
-    out = args.out or ROOT / "data/experiments/01_profile_probe" / args.set
+    data = args.data or ROOT / "data/processed/consensus_n125_test/profile_probe" / args.set
+    results = args.results or ROOT / "data/experiments/01_profile_probe" / args.set
 
     values = load_values("prompts/taxonomy-values.txt")
     fixed = {k: load_profile(path, values) for k, path in FIXED.items()}
     prompts = {f: (ROOT / f).read_text().strip() for f in {c[0] for c in conditions.values()}}
     texts = pd.read_csv(SAMPLE).set_index("id").comment_text
 
-    out.mkdir(parents=True, exist_ok=True)
-    path = out / "ratings.csv"
+    data.mkdir(parents=True, exist_ok=True)
+    path = data / "ratings.csv"
     done = set()
     if path.exists():
         r = pd.read_csv(path)
@@ -123,7 +128,7 @@ def main():
                 pd.DataFrame([row]).to_csv(path, mode="a", header=not path.exists(), index=False)
         if failed:
             print(f"{failed} ratings failed; re-run to retry them")
-    summarize(path, out, conditions, args.model)
+    summarize(path, results, conditions, args.model)
 
 
 def summarize(path, out, conditions, model):
@@ -135,7 +140,9 @@ def summarize(path, out, conditions, model):
     human = pd.read_csv(SAMPLE).set_index("id").toxicity
     table = pd.DataFrame({"role": pd.Series(COMMENTS), "human": human, "detoxify": detoxify}).loc[score.index]
     table = table.join(score)
+    out.mkdir(parents=True, exist_ok=True)
     table.to_csv(out / "summary.csv")
+    write_sources(out, [path, SAMPLE, JUDGEMENTS])
     pd.set_option("display.width", 250)
     print(f"\nShare of {model} ratings TOXIC:")
     print(table.round(2).to_string())

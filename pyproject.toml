@@ -7,9 +7,12 @@ dependencies = [
     "matplotlib",
     "openai",
     "pandas",
+    "pyarrow>=26.0.1",
     "pyyaml",
+    "sentence-transformers>=6.2.0",
     "tqdm",
     "transformers",
+    "umap-learn>=0.5.12",
 ]
 
 [build-system]
@@ -22,4 +25,6 @@ packages = ["src/ethos"]
 [dependency-groups]
 dev = [
     "ipykernel",
+    "nbformat>=5.11.1",
+    "plotly>=7.1.0",
 ]
