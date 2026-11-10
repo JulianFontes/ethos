@@ -1,21 +1,19 @@
-"""Plot annotator consensus vs toxicity score for the datasets built by scripts/extract_splits.py.
+"""Plot annotator consensus vs toxicity score for the datasets built by scripts/data/extract_splits.py.
 
 Writes <data_dir>/figures/consensus_vs_toxicity_<split>.png and consensus_distribution_<split>.png for each split.
 
 Usage:
-    python scripts/plot_consensus.py                      # train and test
-    python scripts/plot_consensus.py --splits test
-    python scripts/plot_consensus.py --splits all         # train and test together
-    python scripts/plot_consensus.py --data-dir data/processed/toplevel_min30
+    python scripts/plots/plot_consensus.py                      # train and test
+    python scripts/plots/plot_consensus.py --splits test
+    python scripts/plots/plot_consensus.py --splits all         # train and test together
+    python scripts/plots/plot_consensus.py --data-dir data/processed/toplevel_min30
 """
 import argparse
-from pathlib import Path
 
 import pandas as pd
 
+from ethos.paths import ROOT
 from ethos.plotting.consensus import plot_consensus_distribution, plot_consensus_vs_toxicity
-
-ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():

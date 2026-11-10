@@ -11,8 +11,8 @@ Writes to <output_dir>/:
   config.yaml            the config used
 
 Usage:
-    python scripts/extract_splits.py
-    python scripts/extract_splits.py --config configs/my_splits.yaml
+    python scripts/data/extract_splits.py
+    python scripts/data/extract_splits.py --config configs/my_splits.yaml
 """
 import argparse
 import shutil
@@ -22,8 +22,8 @@ import pandas as pd
 import yaml
 
 from ethos.data import build_splits, load_comments, load_votes
+from ethos.paths import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG = ROOT / "configs" / "splits.yaml"
 
 

@@ -13,6 +13,7 @@ build/
 dist/
 
 # Virtual environments
+.venv
 .venv/
 venv/
 .venv.nosync/

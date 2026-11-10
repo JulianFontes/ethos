@@ -25,6 +25,7 @@ from ethos.judges.core import ROOT, append_rows, output_path, todo
 from ethos.llm import ollama_client, openai_client
 from ethos.llm.dmp import format_profile, load_values, sample_profile
 from ethos.llm.ollama_client import DEFAULT_BASE_URL
+from ethos.scores import toxicity_score
 
 SCHEMA = {
     "type": "object",
@@ -70,7 +71,7 @@ def rate_texts(cfg, sample_dir, limit, prompt_for):
                 failed += 1
                 tqdm.write(f"{name}: failed {row.id}/{row.version}: {str(ratings)[:120]}")
                 continue
-            score = sum(r["evaluation"] == "TOXIC" for r in ratings) / len(ratings)
+            score = toxicity_score(r["evaluation"] for r in ratings)
             append_rows(out, [{"id": row.id, "version": row.version, "text": row.text, "judge": name,
                                "score": round(score, 4), "decision": "remove" if score >= threshold else "allow",
                                "rationale": "", "profile": profile, "ratings": json.dumps(ratings)}])

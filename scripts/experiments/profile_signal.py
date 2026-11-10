@@ -1,28 +1,27 @@
-"""Profile signal: do the identity and the weighting of a profile's values change the LLM's TOXIC answers?
+"""Profile signal: do moral profiles change the LLM's TOXIC / NOT TOXIC answers?
 
-Every profile in prompts/profiles/*.yaml is run three ways (the same values, different weights):
-  as-is      the file's weights
-  equal      every value the same weight
-  reversed   the file's weights in reverse order (the top value gets the smallest weight)
-plus a no-profile baseline, on the same uncertain train comments (comments whose answers varied under random DMP,
-read from data/judgements/consensus_n125_train/judgements.csv), `samples` answers each, minimal prompt.
+Conditions (each asked `--samples` times per comment, minimal prompt, plus a no-profile baseline "none"):
+  default          every profile in prompts/profiles/*.yaml, under each `--weightings`:
+                     as-is     the file's weights
+                     equal     every value the same weight
+                     reversed  the file's weights in reverse order
+  --single-values  each value of the taxonomy alone at weight 1 ("<value>|as-is")
 
-Tests (permutation: shuffle answers between the compared conditions within each comment):
-  identity   do the profiles (as-is) differ from each other more than chance?
-  weighting  within each profile, do as-is / equal / reversed differ more than chance?
-  profile    does adding a profile change answers vs. no profile?
+Comments: the `--n-comments` train comments whose random-DMP answers were most mixed, or `--all` of them, or `--ids`.
 
-Writes to <out>/: ratings.csv (one row per answer; re-running skips answers already there) and summary.csv.
+Writes to <out>/: ratings.csv (one row per answer; re-running skips answers already there) and summary.csv (share
+TOXIC per condition), then prints permutation tests (answers shuffled between conditions within each comment):
+whether profiles differ from no profile and from each other, and whether weightings differ within a profile.
+Plot a run with scripts/plots/plot_profiles.py --results <out>.
 
 Usage:
-    python scripts/experiments/profile_signal.py --model gpt-6-luna --workers 16
-    python scripts/experiments/profile_signal.py --model qwen3:8b --workers 4
-    python scripts/experiments/profile_signal.py --all --weightings as-is --samples 10 --out data/experiments/profile_signal/train_all
-    python scripts/experiments/profile_signal.py --ids 5705144 --samples 10 --out data/experiments/profile_signal/one_comment
-    python scripts/experiments/profile_signal.py --analyze-only --out data/experiments/profile_signal/gpt
+    python scripts/experiments/profile_signal.py --out data/experiments/02_profile_signal/probe_20_comments
+    python scripts/experiments/profile_signal.py --all --weightings as-is reversed --out data/experiments/02_profile_signal/train_125_comments
+    python scripts/experiments/profile_signal.py --all --single-values --out data/experiments/03_single_values
+    python scripts/experiments/profile_signal.py --ids 5705144 --out /tmp/one_comment          # smoke test
+    python scripts/experiments/profile_signal.py --analyze-only --out data/experiments/03_single_values
 """
 import argparse
-import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -33,122 +32,134 @@ from tqdm import tqdm
 from ethos.judges.llm_judge import SCHEMA, load_profile
 from ethos.llm import ollama_client, openai_client
 from ethos.llm.dmp import format_profile, load_values
+from ethos.paths import ROOT, TRAIN_SAMPLE
+from ethos.scores import toxicity_score
 
-ROOT = Path(__file__).resolve().parents[2]
-SAMPLE = ROOT / "data/processed/consensus_n125_train/sample.csv"
 RANDOM_DMP = ROOT / "data/judgements/consensus_n125_train/judgements.csv"
 BASE_PROMPT = ROOT / "prompts/judge_minimal.txt"
 DMP_PROMPT = ROOT / "prompts/judge_minimal_pluralistic.txt"
+WEIGHTINGS = ["as-is", "equal", "reversed"]
 
+
+# --- setup -----------------------------------------------------------------------------------------------------
 
 def uncertain_comments(n):
     """The n train comments whose random-DMP answers were most mixed (closest to a 50/50 split)."""
     j = pd.read_csv(RANDOM_DMP)
-    s = j[j.judge == "gpt-6-luna-dmp-random"].set_index("id").score
-    return (s - 0.5).abs().sort_values().index[:n].tolist()
+    score = j[j.judge == "gpt-6-luna-dmp-random"].set_index("id").score
+    return (score - 0.5).abs().sort_values().index[:n].tolist()
 
 
-def conditions(taxonomy, weightings=("as-is", "equal", "reversed")):
-    """{condition name: profile string}; "" = no profile."""
+def conditions(taxonomy, weightings=WEIGHTINGS, single_values=False):
+    """{condition name: profile text for the prompt}; "none" (empty text) = no profile."""
     out = {"none": ""}
+    if single_values:
+        return out | {f"{v}|as-is": format_profile([(v, 1.0)]) for v in taxonomy}
     for path in sorted((ROOT / "prompts/profiles").glob("*.yaml")):
-        prof = load_profile(path.relative_to(ROOT), taxonomy)
-        values, weights = [v for v, _ in prof], [w for _, w in prof]
-        variants = {"as-is": prof, "equal": [(v, 1 / len(values)) for v in values],
+        profile = load_profile(path.relative_to(ROOT), taxonomy)
+        values, weights = [v for v, _ in profile], [w for _, w in profile]
+        variants = {"as-is": profile, "equal": [(v, 1 / len(values)) for v in values],
                     "reversed": list(zip(values, weights[::-1]))}
         for w in weightings:
             out[f"{path.stem}|{w}"] = format_profile(variants[w])
     return out
 
 
-def main():
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--model", default="gpt-6-luna", help="gpt-* through the OpenAI API, anything else through Ollama")
-    p.add_argument("--n-comments", type=int, default=20)
-    p.add_argument("--ids", nargs="+", type=int, default=None, help="specific comment ids instead of the most uncertain")
-    p.add_argument("--all", action="store_true", help="every comment in --sample instead of the most uncertain")
-    p.add_argument("--sample", type=Path, default=SAMPLE, help="sample.csv to draw comments from")
-    p.add_argument("--weightings", nargs="+", default=["as-is", "equal", "reversed"],
-                   choices=["as-is", "equal", "reversed"], help="which weightings of each profile to run")
-    p.add_argument("--samples", type=int, default=5)
-    p.add_argument("--workers", type=int, default=16)
-    p.add_argument("--out", type=Path, default=None, help="default: data/experiments/profile_signal/<model>")
-    p.add_argument("--analyze-only", action="store_true")
-    args = p.parse_args()
-    out = args.out or ROOT / "data/experiments/profile_signal" / args.model.split(":")[0]
-    out.mkdir(parents=True, exist_ok=True)
-    path = out / "ratings.csv"
+# --- collecting answers ----------------------------------------------------------------------------------------
 
-    if not args.analyze_only:
-        conds = conditions(load_values("prompts/taxonomy-values.txt"), args.weightings)
-        ids = args.ids or (pd.read_csv(args.sample).id.tolist() if args.all else uncertain_comments(args.n_comments))
-        texts = pd.read_csv(args.sample).set_index("id").comment_text
-        done = set()
-        if path.exists():
-            r = pd.read_csv(path)
-            done = set(zip(r.id, r.condition, r.rating))
-        jobs = [(cid, c, i) for cid in ids for c in conds for i in range(args.samples) if (cid, c, i) not in done]
-        print(f"{len(conds)} conditions x {len(ids)} comments x {args.samples} answers: {len(jobs)} to do")
-        llm = openai_client if args.model.startswith("gpt") else ollama_client
-        client = llm.get_client(args.model)
-        base, dmp = BASE_PROMPT.read_text().strip(), DMP_PROMPT.read_text().strip()
+def collect(path, conds, texts, samples, model, workers):
+    """Ask the model for every (comment, condition, answer number) not yet in `path`, appending one row per answer.
+    Failed calls are skipped and retried on the next run."""
+    done = set()
+    if path.exists():
+        r = pd.read_csv(path)
+        done = set(zip(r.id, r.condition, r.rating))
+    jobs = [(cid, c, i) for cid in texts.index for c in conds for i in range(samples) if (cid, c, i) not in done]
+    print(f"{len(conds)} conditions x {len(texts)} comments x {samples} answers: {len(jobs)} to do")
 
-        def rate(job):
-            cid, c, i = job
-            system = dmp.replace("{profile}", conds[c]) if conds[c] else base
-            try:
-                return job, llm.chat_json(client, args.model, system, f"Comment:\n{texts[cid]}", SCHEMA,
-                                          temperature=1.0, reasoning_effort="none")
-            except Exception as e:  # retried on the next run
-                return job, e
+    llm = openai_client if model.startswith("gpt") else ollama_client
+    client = llm.get_client(model)
+    base, dmp = BASE_PROMPT.read_text().strip(), DMP_PROMPT.read_text().strip()
 
-        with ThreadPoolExecutor(args.workers) as pool:
-            for fut in tqdm(as_completed([pool.submit(rate, j) for j in jobs]), total=len(jobs), unit="answer"):
-                (cid, c, i), a = fut.result()
-                if isinstance(a, Exception):
-                    continue
-                row = {"id": cid, "condition": c, "rating": i, "profile": conds[c], "toxic": a["evaluation"] == "TOXIC",
-                       "rationale": a["rationale"]}
-                pd.DataFrame([row]).to_csv(path, mode="a", header=not path.exists(), index=False)
-    analyze(path, out)
+    def ask(job):
+        cid, c, _ = job
+        system = dmp.replace("{profile}", conds[c]) if conds[c] else base
+        try:
+            return job, llm.chat_json(client, model, system, f"Comment:\n{texts[cid]}", SCHEMA, temperature=1.0,
+                                      reasoning_effort="none")
+        except Exception as e:
+            return job, e
+
+    with ThreadPoolExecutor(workers) as pool:
+        for future in tqdm(as_completed([pool.submit(ask, j) for j in jobs]), total=len(jobs), unit="answer"):
+            (cid, c, i), answer = future.result()
+            if isinstance(answer, Exception):
+                continue
+            row = {"id": cid, "condition": c, "rating": i, "profile": conds[c],
+                   "toxic": answer["evaluation"] == "TOXIC", "rationale": answer["rationale"]}
+            pd.DataFrame([row]).to_csv(path, mode="a", header=not path.exists(), index=False)
 
 
-def spread(r, conds, rng, n_perm=2000):
-    """Variance of the conditions' TOXIC shares (within-comment centred) and its permutation p-value."""
+# --- analysis --------------------------------------------------------------------------------------------------
+
+def permutation_p(r, conds, rng, n_perm=2000):
+    """p-value for "the conditions' TOXIC shares differ": the variance of their within-comment-centred shares,
+    against shuffles of the condition labels within each comment."""
     x = r[r.condition.isin(conds)].copy()
     x["c"] = x.toxic - x.groupby("id").toxic.transform("mean")
     stat = lambda d: d.groupby("condition").c.mean().var()
-    obs, null = stat(x), []
+    observed, null = stat(x), []
     for _ in range(n_perm):
         x["condition"] = x.groupby("id").condition.transform(lambda s: rng.permutation(s.values))
         null.append(stat(x))
-    return obs, float(np.mean(np.array(null) >= obs))
+    return float(np.mean(np.array(null) >= observed))
 
 
 def analyze(path, out):
     r = pd.read_csv(path)
     r["toxic"] = r.toxic.astype(bool)
-    rng = np.random.default_rng(0)
-    base = r[r.condition == "none"].groupby("id").toxic.mean()
-    table = r.groupby("condition").toxic.mean().rename("share_toxic").to_frame()
-    table["shift_vs_none"] = table.share_toxic - base.mean()
+    table = toxicity_score(r, by="condition").rename("share_toxic").to_frame()
+    table["shift_vs_none"] = table.share_toxic - table.share_toxic["none"]
     table.to_csv(out / "summary.csv")
     pd.set_option("display.width", 200)
     print(f"\n{r.id.nunique()} comments, {len(r)} answers. Share TOXIC per condition (none = no profile):")
     print(table.sort_values("share_toxic").round(3).to_string())
 
-    profiles = sorted({c.split("|")[0] for c in r.condition if "|" in c})
-    print("\nTests (p = share of within-comment shuffles at least as extreme):")
-    _, p = spread(r, ["none"] + [f"{q}|as-is" for q in profiles], rng)
-    print(f"  any profile vs none + identity: p = {p:.3f}")
-    _, p = spread(r, [f"{q}|as-is" for q in profiles], rng)
-    print(f"  identity (the {len(profiles)} profiles, as-is, differ from each other): p = {p:.3f}")
-    for q in profiles:
-        variants = [f"{q}|{w}" for w in ("as-is", "equal", "reversed") if f"{q}|{w}" in set(r.condition)]
-        if len(variants) < 2:
-            continue
-        _, p = spread(r, variants, rng, n_perm=1000)
-        print(f"  weighting within {q}: p = {p:.3f}")
+    rng = np.random.default_rng(0)
+    names = sorted({c.split("|")[0] for c in r.condition if c != "none"})
+    as_written = [f"{q}|as-is" for q in names]
+    print("\nPermutation tests (p = share of within-comment shuffles at least as extreme):")
+    print(f"  profiles and no profile differ:   p = {permutation_p(r, ['none'] + as_written, rng):.3f}")
+    print(f"  profiles differ from each other:  p = {permutation_p(r, as_written, rng):.3f}")
+    for q in names:
+        variants = [f"{q}|{w}" for w in WEIGHTINGS if f"{q}|{w}" in set(r.condition)]
+        if len(variants) > 1:
+            print(f"  weightings differ within {q}: p = {permutation_p(r, variants, rng, n_perm=1000):.3f}")
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--out", type=Path, required=True, help="run folder, e.g. data/experiments/03_single_values")
+    p.add_argument("--model", default="gpt-6-luna", help="gpt-* through the OpenAI API, anything else through Ollama")
+    p.add_argument("--sample", type=Path, default=TRAIN_SAMPLE / "sample.csv", help="sample.csv with the comments")
+    p.add_argument("--n-comments", type=int, default=20, help="the most uncertain comments (default)")
+    p.add_argument("--all", action="store_true", help="every comment in --sample")
+    p.add_argument("--ids", nargs="+", type=int, help="specific comment ids")
+    p.add_argument("--weightings", nargs="+", default=WEIGHTINGS, choices=WEIGHTINGS)
+    p.add_argument("--single-values", action="store_true", help="each taxonomy value alone instead of the profiles")
+    p.add_argument("--samples", type=int, default=10, help="answers per comment and condition")
+    p.add_argument("--workers", type=int, default=16)
+    p.add_argument("--analyze-only", action="store_true")
+    args = p.parse_args()
+    args.out.mkdir(parents=True, exist_ok=True)
+    path = args.out / "ratings.csv"
+
+    if not args.analyze_only:
+        texts = pd.read_csv(args.sample).set_index("id").comment_text
+        ids = args.ids or (texts.index.tolist() if args.all else uncertain_comments(args.n_comments))
+        conds = conditions(load_values("prompts/taxonomy-values.txt"), args.weightings, args.single_values)
+        collect(path, conds, texts.loc[ids], args.samples, args.model, args.workers)
+    analyze(path, args.out)
 
 
 if __name__ == "__main__":

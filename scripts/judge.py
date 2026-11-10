@@ -1,15 +1,15 @@
-"""Run judges over every comment version (original + variations) of a sample.
+"""Run judges over every comment of a sample.
 
 All judges and the sample they run on are defined in configs/judges.yaml; judges run in the
 order listed. Results go to data/judgements/<sample>/judgements.csv (one row per judge per
-version); the config is copied to its log/ folder. Re-running skips versions already done.
+comment); the config is copied to its log/ folder. Re-running skips comments already done.
 
 Usage:
   python scripts/judge.py                                   # every judge in configs/judges.yaml
-  python scripts/judge.py --only qwen3:8b-dmp               # only judges with these names
+  python scripts/judge.py --only gpt-6-luna-base            # only judges with these names
   python scripts/judge.py --limit 2                         # first 2 comments only
   python scripts/judge.py --query "consensus < 0.7"         # only comments whose sample.csv row matches
-  python scripts/judge.py --sample-dir data/processed/sample_n200   # override the config's sample_dir
+  python scripts/judge.py --sample-dir data/processed/consensus_n125_train   # override the config's sample_dir
 """
 import argparse
 from pathlib import Path

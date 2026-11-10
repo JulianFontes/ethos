@@ -1,10 +1,10 @@
 """Attribute figures: how often annotators selected each toxicity attribute (insult, obscene, ...) per comment."""
 import matplotlib.pyplot as plt
-from matplotlib.patches import Patch
 import numpy as np
 import pandas as pd
+from matplotlib.patches import Patch
 
-from ethos.plotting.sample_overview import STYLE, INK, INK2, SURFACE
+from ethos.plotting.style import INK, INK2, STYLE, SURFACE
 
 # column in the Civil Comments data -> (panel title, color)
 ATTRIBUTES = {"insult": ("Insult", "#2a78d6"), "obscene": ("Obscene", "#eb6834"),

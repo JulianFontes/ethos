@@ -2,11 +2,10 @@
 
 Every judge writes rows to one long CSV, data/judgements/<sample>/judgements.csv:
     id, version, text, judge, score, decision, rationale, profile, kaleido, ratings
-`version` is "original" or one of the variation types; `judge` is the judge's name from its config
-(the human annotations are the `human` judge's rows, originals only); `profile` is the value profile
-a pluralistic judge was given (empty for other judges); `kaleido` holds the Kaleido values for the
-rationale, filled in later by scripts/kaleido_values.py; `ratings` holds an LLM annotator judge's individual
-ratings (JSON list; see ethos.judges.llm_judge).
+`judge` is the judge's name from configs/judges.yaml (the human annotations are the `human` judge's rows);
+`score` is the toxicity score (for LLM judges, ethos.scores.toxicity_score of its answers); `profile` is the moral
+profile a DMP judge was given; `ratings` holds an LLM judge's individual answers (JSON list). `version` (always
+"original") and `kaleido` (always empty) are kept so older judgements.csv files stay readable.
 """
 import csv
 import shutil
@@ -15,8 +14,8 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-ROOT = Path(__file__).resolve().parents[3]
-VERSIONS = ["original", "consequentialist", "emotional", "relational"]
+from ethos.paths import ROOT
+
 COLUMNS = ["id", "version", "text", "judge", "score", "decision", "rationale", "profile", "kaleido", "ratings"]
 
 
@@ -35,20 +34,11 @@ def load_judges(path):
     return [{**defaults, **judge} if judge["type"] in LLM_TYPES else judge for judge in cfg["judges"]]
 
 
-def load_versions(sample_dir):
-    """One row per comment version: id, version, text (original plus each variation).
-
-    Everything comes from variations.csv, whose `comment_text` column is the original comment. A sample without
-    variations.csv (no variations generated yet) gives only its original comments, from sample.csv.
-    """
-    if not (ROOT / sample_dir / "variations.csv").exists():
-        originals = pd.read_csv(ROOT / sample_dir / "sample.csv", usecols=["id", "comment_text"])
-        originals = originals.rename(columns={"comment_text": "text"}).assign(version="original")
-        return originals[["id", "version", "text"]].sort_values("id", ignore_index=True)
-    wide = pd.read_csv(ROOT / sample_dir / "variations.csv", usecols=["id", "comment_text"] + VERSIONS[1:])
-    wide = wide.rename(columns={"comment_text": "original"})
-    long = wide.melt(id_vars="id", value_vars=VERSIONS, var_name="version", value_name="text")
-    return long.dropna(subset=["text"]).sort_values(["id", "version"], ignore_index=True)
+def load_texts(sample_dir):
+    """The sample's comments: id, version ("original"), text."""
+    texts = pd.read_csv(ROOT / sample_dir / "sample.csv", usecols=["id", "comment_text"])
+    texts = texts.rename(columns={"comment_text": "text"}).assign(version="original")
+    return texts[["id", "version", "text"]].sort_values("id", ignore_index=True)
 
 
 def output_path(sample_dir):
@@ -57,12 +47,12 @@ def output_path(sample_dir):
 
 
 def todo(sample_dir, judge, limit=None, query=None):
-    """Comment versions this judge still has to do.
+    """Comments this judge still has to do.
 
     Optionally only comments whose sample.csv row matches `query` (a pandas query, e.g. "consensus < 0.7"),
     and only the first `limit` comments.
     """
-    versions = load_versions(sample_dir)
+    versions = load_texts(sample_dir)
     if query:
         keep = pd.read_csv(ROOT / sample_dir / "sample.csv").query(query).id
         versions = versions[versions.id.isin(keep)]

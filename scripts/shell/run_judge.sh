@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Run the judges (configs/judges.yaml) over every comment version of the sample.
+# Run the judges (configs/judges.yaml) over every comment of the sample.
 #
 # Usage:
 #   scripts/shell/run_judge.sh                                         # all judges
-#   scripts/shell/run_judge.sh --only qwen3:8b-dmp                     # extra args are passed to judge.py
+#   scripts/shell/run_judge.sh --only gpt-6-luna-base                    # extra args are passed to judge.py
 #   scripts/shell/run_judge.sh --limit 2
 set -euo pipefail
 

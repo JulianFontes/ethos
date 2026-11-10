@@ -1,6 +1,6 @@
 """Plot each comment's toxicity score against how many annotators selected each attribute (raw, one dot per comment).
 
-Reads <data_dir>/comments.csv (built by scripts/extract_splits.py) and writes, for each split:
+Reads <data_dir>/comments.csv (built by scripts/data/extract_splits.py) and writes, for each split:
   <data_dir>/figures/attributes_vs_toxicity_<split>.png              x = toxicity score
   <data_dir>/figures/attributes_vs_toxicity_consensus_<split>.png    the same, plus a row with x = consensus
   <data_dir>/figures/attributes_by_bin_<split>.png                    average per consensus bin (top) and toxicity bin
@@ -11,19 +11,22 @@ and, from the individual annotator votes (train only, <data_dir>/train_annotatio
   <data_dir>/figures/attribute_votes_by_consensus_train.csv           the counts behind it
 
 Usage:
-    python scripts/plot_attributes.py                     # train and test together
-    python scripts/plot_attributes.py --splits train test all
+    python scripts/plots/plot_attributes.py                     # train and test together
+    python scripts/plots/plot_attributes.py --splits train test all
 """
 import argparse
-from pathlib import Path
 
 import pandas as pd
 
-from ethos.plotting.attributes import (ATTRIBUTES, attribute_votes_by_consensus, attributes_by_bin,
-                                      plot_attribute_votes_by_consensus, plot_attributes_by_bin,
-                                      plot_attributes_vs_toxicity)
-
-ROOT = Path(__file__).resolve().parents[1]
+from ethos.paths import ROOT
+from ethos.plotting.attributes import (
+    ATTRIBUTES,
+    attribute_votes_by_consensus,
+    attributes_by_bin,
+    plot_attribute_votes_by_consensus,
+    plot_attributes_by_bin,
+    plot_attributes_vs_toxicity,
+)
 
 
 def main():

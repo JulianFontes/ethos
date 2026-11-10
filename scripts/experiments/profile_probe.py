@@ -12,9 +12,9 @@ rated with the minimal prompt (the same prompt and answer format as ethos.judges
                          M-C expression (Freedom, Honesty, Autonomy, ...)   should lower TOXIC answers
                          M-D protective (Respect, Compassion, ...)          should raise TOXIC answers      10 each
 
-score = share of ratings that are TOXIC. Older probes (annotator instructions, reasoning, thinking) are in .artifact/.
+score = share of ratings that are TOXIC. Older probes (annotator instructions, reasoning, thinking) are in .archive/.
 
-Writes to the --out folder (default data/experiments/profile_probe_<set>/):
+Writes to the --out folder (default data/experiments/01_profile_probe/<set>/):
   ratings.csv   one row per rating (id, model, condition, rating number, profile, evaluation, rationale)
   summary.csv   score per comment and condition, with the human score and Detoxify
 Re-running skips ratings already in ratings.csv.
@@ -33,8 +33,9 @@ from tqdm import tqdm
 from ethos.judges.llm_judge import SCHEMA, load_profile
 from ethos.llm import ollama_client, openai_client
 from ethos.llm.dmp import format_profile, load_values, sample_profile
+from ethos.paths import ROOT
+from ethos.scores import toxicity_score
 
-ROOT = Path(__file__).resolve().parents[2]
 SAMPLE = ROOT / "data/processed/consensus_n125_test/sample.csv"
 JUDGEMENTS = ROOT / "data/judgements/consensus_n125_test/judgements.csv"
 BASE_URL, TEMPERATURE = "http://localhost:11434/v1", 1.0
@@ -65,10 +66,10 @@ def main():
     p.add_argument("--equal-weights", action="store_true", help="give every profile value the same weight")
     p.add_argument("--scale", type=float, default=1.0, help="multiply ratings per condition (smoke test: 0.1)")
     p.add_argument("--workers", type=int, default=4, help="calls in flight")
-    p.add_argument("--out", type=Path, default=None, help="output folder (default: data/experiments/profile_probe_<set>)")
+    p.add_argument("--out", type=Path, default=None, help="output folder (default: data/experiments/01_profile_probe/<set>)")
     args = p.parse_args()
     conditions = SETS[args.set]
-    out = args.out or ROOT / "data/experiments" / f"profile_probe_{args.set}"
+    out = args.out or ROOT / "data/experiments/01_profile_probe" / args.set
 
     values = load_values("prompts/taxonomy-values.txt")
     fixed = {k: load_profile(path, values) for k, path in FIXED.items()}
@@ -127,8 +128,7 @@ def main():
 
 def summarize(path, out, conditions, model):
     """Share of TOXIC ratings per comment and condition, next to the human score and Detoxify."""
-    r = pd.read_csv(path).assign(toxic=lambda d: d.evaluation == "TOXIC")
-    score = r.pivot_table(index="id", columns="condition", values="toxic", aggfunc="mean")
+    score = toxicity_score(pd.read_csv(path), by=["id", "condition"]).unstack("condition")
     score = score[[c for c in conditions if c in score]]
     j = pd.read_csv(JUDGEMENTS)
     detoxify = j[(j.judge == "detoxify") & (j.version == "original")].set_index("id").score
