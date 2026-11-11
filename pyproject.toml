@@ -10,6 +10,7 @@ dependencies = [
     "pyarrow>=26.0.1",
     "pyyaml",
     "sentence-transformers>=6.2.0",
+    "submitit>=1.5.4",
     "tqdm",
     "transformers",
     "umap-learn>=0.5.12",

@@ -1,6 +1,6 @@
 """Thin wrapper to reach a model served by vLLM (OpenAI-compatible server), with the same interface as ollama_client.
 
-Setup: a running `vllm serve <model>` (scripts/shell/slurm_vllm.sh starts one on a cluster GPU). The server URL is
+Setup: a running `vllm serve <model>` (scripts/shell/submit_vllm.sh starts one per cluster job). The server URL is
 VLLM_BASE_URL (default http://localhost:8000/v1).
 """
 import os

@@ -1,36 +1,10 @@
 #!/usr/bin/env bash
-# Split a profile_signal.py run across nodes: one Slurm array task (one A100 + its own vLLM server) per job of
-# --job-size comments. Each task gets its job from SLURM_ARRAY_TASK_ID / SLURM_ARRAY_TASK_COUNT.
+# Submit a distributed vLLM run from a cluster login node; all settings are in the YAML config.
 #
-# Usage (from the project root; extra sbatch options go in SBATCH_ARGS):
-#   SBATCH_ARGS="--time=08:00:00" scripts/shell/submit_vllm.sh --job-size 500 [--max-nodes 4] \
-#       --sample data/processed/consensus_n1000_train/sample.csv -- \
-#       uv run python scripts/experiments/profile_signal.py --model vllm:Qwen/Qwen3-8B --all --single-values --workers 64 \
-#       --sample data/processed/consensus_n1000_train/sample.csv --data data/processed/consensus_n1000_train/single_values_qwen3_8b
+# Usage (from anywhere):
+#   scripts/shell/submit_vllm.sh --config configs/vllm_run.yaml --dry-run    # show the plan
+#   scripts/shell/submit_vllm.sh --config configs/vllm_run.yaml
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-
-MAX_NODES="${MAX_NODES:-4}"   # most jobs (= A100 nodes) to run at once; set your lab's limit here or pass --max-nodes
-JOB_SIZE="" SAMPLE=""
-while [[ $# -gt 0 && "$1" != "--" ]]; do
-    case "$1" in
-        --job-size) JOB_SIZE="$2"; shift 2 ;;
-        --sample) SAMPLE="$2"; shift 2 ;;
-        --max-nodes) MAX_NODES="$2"; shift 2 ;;
-        *) echo "unknown option $1"; exit 1 ;;
-    esac
-done
-shift   # the --
-[[ -n "$JOB_SIZE" && -n "$SAMPLE" && $# -gt 0 ]] || { echo "usage: $0 --job-size N --sample <csv> -- <command>"; exit 1; }
-
-N_COMMENTS=$(PYTHONPATH=src uv run python -c "import pandas as pd; print(len(pd.read_csv('$SAMPLE')))")
-N_JOBS=$(( (N_COMMENTS + JOB_SIZE - 1) / JOB_SIZE ))
-if (( N_JOBS > MAX_NODES )); then
-    # Fewer, bigger jobs (all running at once) rather than queuing extras: each job holds every Nth comment, so
-    # checkpoints only fill up once every job is running.
-    echo "$N_JOBS jobs of $JOB_SIZE would exceed --max-nodes $MAX_NODES; using $MAX_NODES jobs of ~$(( (N_COMMENTS + MAX_NODES - 1) / MAX_NODES ))"
-    N_JOBS=$MAX_NODES
-fi
-echo "$N_COMMENTS comments -> $N_JOBS jobs, one node each (array 0-$((N_JOBS - 1)))"
-sbatch --array=0-$((N_JOBS - 1)) ${SBATCH_ARGS:-} scripts/shell/slurm_vllm.sh "$@"
-echo "When the jobs finish (or any time, to see progress), combine them with the same command plus --merge."
+export PYTHONPATH="$PWD/src${PYTHONPATH:+:$PYTHONPATH}"   # iCloud can hide the venv's .pth files on a Mac
+uv run python scripts/experiments/submit_vllm.py "$@"
