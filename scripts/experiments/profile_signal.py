@@ -20,8 +20,6 @@ Distributed runs (one Slurm array task per job; --job / --num-jobs default to SL
 Results (`--results`, an experiment folder, optional):
   summary.csv   share TOXIC per condition
   sources.yaml  which data the results came from
-and prints permutation tests (answers shuffled between conditions within each comment): whether profiles differ from
-no profile and from each other, and whether weightings differ within a profile.
 Plot a run with scripts/plots/plot_profiles.py --data <data> --out <results>.
 
 Usage:
@@ -45,7 +43,6 @@ import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
@@ -184,22 +181,9 @@ def merge(data, sample_path, every):
 
 # --- analysis --------------------------------------------------------------------------------------------------
 
-def permutation_p(r, conds, rng, n_perm=2000):
-    """p-value for "the conditions' TOXIC shares differ": the variance of their within-comment-centred shares,
-    against shuffles of the condition labels within each comment."""
-    x = r[r.condition.isin(conds)].copy()
-    x["c"] = x.toxic - x.groupby("id").toxic.transform("mean")
-    stat = lambda d: d.groupby("condition").c.mean().var()
-    observed, null = stat(x), []
-    for _ in range(n_perm):
-        x["condition"] = x.groupby("id").condition.transform(lambda s: rng.permutation(s.values))
-        null.append(stat(x))
-    return float(np.mean(np.array(null) >= observed))
-
-
 def analyze(data, results=None, sample_path=TRAIN_SAMPLE / "sample.csv"):
-    """Write <data>/scores.csv; with `results`, also <results>/summary.csv and sources.yaml and print the permutation
-    tests (slow on large runs, so a data-only run, without `results`, skips them)."""
+    """Write <data>/scores.csv and print the share TOXIC per condition; with `results`, also write it to
+    <results>/summary.csv with sources.yaml."""
     r = pd.read_csv(data / "ratings.csv")
     r["toxic"] = r.toxic.astype(bool)
     score_table(r, pd.read_csv(sample_path)).to_csv(data / "scores.csv", index=False)
@@ -213,18 +197,6 @@ def analyze(data, results=None, sample_path=TRAIN_SAMPLE / "sample.csv"):
     print(f"\n{r.id.nunique()} comments, {len(r)} answers. Share TOXIC per condition (none = no profile):")
     print(table.sort_values("share_toxic").round(3).to_string())
 
-    if not results:
-        return
-    rng = np.random.default_rng(0)
-    names = sorted({c.split("|")[0] for c in r.condition if c != "none"})
-    as_written = [f"{q}|as-is" for q in names]
-    print("\nPermutation tests (p = share of within-comment shuffles at least as extreme):")
-    print(f"  profiles and no profile differ:   p = {permutation_p(r, ['none'] + as_written, rng):.3f}")
-    print(f"  profiles differ from each other:  p = {permutation_p(r, as_written, rng):.3f}")
-    for q in names:
-        variants = [f"{q}|{w}" for w in WEIGHTINGS if f"{q}|{w}" in set(r.condition)]
-        if len(variants) > 1:
-            print(f"  weightings differ within {q}: p = {permutation_p(r, variants, rng, n_perm=1000):.3f}")
 
 
 def main():
