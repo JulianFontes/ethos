@@ -1,0 +1,12 @@
+# Config for scripts/data/extract_consensus_sample.py: 1,000 train comments (200 per consensus bin) for the value policy,
+# with the same filters, bins and seed as configs/sample_consensus_train.yaml (whose 125 comments it should contain).
+
+source: data/processed/comments/comments.csv
+split: train          # tuning set; the test sample stays held out
+per_bin: 200         # comments drawn from each bin (1,000 total)
+seed: 0               # random seed for a reproducible draw
+
+# Consensus = max(p, 1 - p): 0.5 = even split, 1 = unanimous. Bins are [lo, hi); the last bin includes 1.0.
+bin_edges: [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+
+output_dir: data/processed/consensus_n1000_train   # relative to the project root; gets sample.csv and config.yaml

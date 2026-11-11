@@ -5,7 +5,8 @@ The tree learns to predict distance = |LLM score - human score| from the comment
 the policy picks the value with the lowest predicted distance. Evaluated with cross-validation on the train sample
 (split by comment, balanced by consensus band, 5 folds x 5 repeats) at each depth, against the baselines.
 
-Data: data/processed/consensus_n125_train/single_values/scores.csv and the comment embeddings.
+Data: a single-value scores.csv (--scores; default data/processed/consensus_n125_train/single_values/scores.csv, or a
+checkpoint such as .../single_values_qwen3_8b/checkpoints/n0200/scores.csv) and the comment embeddings.
 Results (--out, default data/experiments/04_value_policy/decision_tree/):
   cv_results.csv    one row per round and depth: train/val MSE, policy distance, tie share, leaves
   baselines.csv     one row per round and split: no value, random, best fixed value, oracle
@@ -24,7 +25,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from ethos.data import feature_matrix, load_embeddings, load_scores
-from ethos.paths import EMBEDDINGS, EXPERIMENTS, ROOT, TRAIN_SAMPLE
+from ethos.paths import EMBEDDINGS, EXPERIMENTS, ROOT, SINGLE_VALUES
 from ethos.plotting.policy import plot_depth_curves
 from ethos.policy import N_FOLDS, baselines, best_fixed_value, cv_splits, run_tree_cv
 from ethos.sources import write_sources
@@ -32,6 +33,7 @@ from ethos.sources import write_sources
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--scores", type=Path, default=SINGLE_VALUES / "scores.csv", help="single-value scores.csv to train on")
     p.add_argument("--depths", nargs="+", type=int, default=list(range(1, 11)))
     p.add_argument("--repeats", type=int, default=5, help="cross-validation repeats (5 folds each)")
     p.add_argument("--out", type=Path, default=EXPERIMENTS / "04_value_policy" / "decision_tree")
@@ -39,8 +41,8 @@ def main():
     out = ROOT / args.out
 
     print("Loading data ...")
-    rows, base = load_scores(TRAIN_SAMPLE)
-    comment = load_embeddings(TRAIN_SAMPLE)
+    rows, base = load_scores(args.scores)
+    comment = load_embeddings()                      # all comments; feature_matrix picks the rows by id
     X = feature_matrix(rows, comment)
     print(f"  {rows.id.nunique()} comments x {rows.moral_value.nunique()} values = {len(rows):,} rows, "
           f"{X.shape[1]} features ({comment.shape[1]} embedding + "
@@ -78,7 +80,7 @@ def main():
     base_df.to_csv(out / "baselines.csv", index=False)
     summary.to_csv(out / "summary.csv")
     plot_depth_curves(results, base_df, out / "depth_curves.png", "Decision Tree Value Policy by Tree Depth")
-    write_sources(out, [TRAIN_SAMPLE / "single_values" / "scores.csv", EMBEDDINGS / "embeddings.parquet"])
+    write_sources(out, [ROOT / args.scores, EMBEDDINGS / "embeddings.parquet"])
     print(f"wrote cv_results.csv, baselines.csv, summary.csv, depth_curves.png, sources.yaml to {out.relative_to(ROOT) if out.is_relative_to(ROOT) else out}")
 
 

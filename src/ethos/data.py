@@ -112,14 +112,15 @@ def load_embeddings(sample_dir=None):
 
 N_VALUES, N_ANSWERS = 60, 10
 
-def load_scores(sample_dir):
-    """Read <sample_dir>/single_values/scores.csv and return (rows, base):
+def load_scores(path):
+    """Read a single-value scores.csv (e.g. data/processed/consensus_n125_train/single_values/scores.csv, or a checkpoint
+    of a larger run) and return (rows, base):
 
     rows  one row per (comment, value), 60 per comment: id, moral_value, llm_toxicity, human_toxicity, consensus_bin,
           and the target distance = |llm_toxicity - human_toxicity|
     base  the same columns for the no-value rows (moral_value "none"), one per comment; used only as a baseline
     """
-    scores = pd.read_csv(ROOT / sample_dir / "single_values" / "scores.csv")
+    scores = pd.read_csv(ROOT / path)
     cols = ["id", "moral_value", "llm_toxicity", "human_toxicity", "consensus_bin"]
     scores = scores[cols].assign(distance=lambda d: (d.llm_toxicity - d.human_toxicity).abs())
     base = scores[scores.moral_value == "none"].set_index("id")

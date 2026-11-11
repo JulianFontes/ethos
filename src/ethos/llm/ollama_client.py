@@ -26,7 +26,7 @@ def get_client(model, base_url=DEFAULT_BASE_URL):
 
 
 def chat_json(client, model, system, user, schema, temperature=None, max_tokens=None,
-              reasoning_effort=None):
+              reasoning_effort=None, extra_body=None):
     """One chat call that must return JSON matching `schema`. Returns a dict.
 
     temperature / max_tokens / reasoning_effort are only sent when given; otherwise the
@@ -39,7 +39,9 @@ def chat_json(client, model, system, user, schema, temperature=None, max_tokens=
     if max_tokens is not None:
         kwargs["max_tokens"] = max_tokens
     if reasoning_effort is not None:
-        kwargs["extra_body"] = {"reasoning_effort": reasoning_effort}
+        extra_body = {**(extra_body or {}), "reasoning_effort": reasoning_effort}
+    if extra_body:
+        kwargs["extra_body"] = extra_body
     resp = client.chat.completions.create(
         model=model,
         messages=[
