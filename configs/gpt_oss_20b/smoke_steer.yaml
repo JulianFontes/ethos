@@ -1,0 +1,33 @@
+# Smoke test for activation steering on gpt-oss-20b: the no-value prompt only, answered unsteered and with the fairness
+# vector at alpha -4 and +4 (one vLLM server each). Checks that steered servers start, answers stay valid JSON, and
+# whether they change.
+#   scripts/shell/submit_vllm.sh --config configs/gpt_oss_20b/smoke_steer.yaml [--dry-run]
+# The run folder gets steering_layers.png and steering.json (which layers, vectors and strengths).
+
+model: openai/gpt-oss-20b                    # Hugging Face id, served by vLLM (MXFP4 MoE, ~13 GB; 3.6B active parameters)
+sample: data/processed/consensus_n1000_train/sample.csv
+data: data/processed/consensus_n1000_train/vllm_smoke_test_gptoss_steer   # throwaway: delete after checking
+ids: [240450, 1020342]                     # 2 comments x 1 condition x 10 answers x 3 steering settings = 60 answers
+
+# What to ask (see profile_signal.py)
+single_values: true
+conditions: [none]                         # only the no-value prompt: any change comes from the activation steering
+samples: 10                                # answers per comment and condition
+reasoning_effort: low                      # gpt-oss always reasons; low is its cheapest setting
+workers: 64                                # requests in flight = vLLM --max-num-seqs
+checkpoint_every: 100                      # comments per checkpoint when merging
+
+# Activation steering (plugins/vllm_steer; vectors from scripts/shell/fit_steering_vectors.sh)
+steering:
+  vectors: data/processed/steering_vectors/gpt-oss-20b
+  values: [fairness]
+  alphas: [0, -4, 4]                       # 0 = unsteered (run once); each other alpha is one server per value
+  layers: "11-16"                          # where every value separates its pairs best (meta.json separation >= 0.90)
+
+# Cluster
+job_size: 500                              # comments per job (= per node)
+max_nodes: 4                               # never more jobs than this; bigger jobs instead
+time: "01:00:00"                           # per job
+partition: gpu_test                        # 20 GB A100 MIG slice; ~13 GB of weights leaves ~4-5 GB for KV cache
+account: protopapas_lab
+scratch: /n/netscratch/protopapas_lab/Lab/$USER   # vLLM and model downloads (several GB + ~16 GB) are cached here

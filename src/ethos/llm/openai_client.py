@@ -1,6 +1,6 @@
 """Thin wrapper to reach OpenAI models through the OpenAI API, with the same interface as ollama_client.
 
-Setup: set OPENAI_API_KEY (e.g. in .env). The model is chosen in configs/judges.yaml.
+Setup: set OPENAI_API_KEY (e.g. in .env). The model is chosen in configs/judges/judges.yaml.
 """
 import os
 from pathlib import Path

@@ -1,0 +1,17 @@
+# Calibrated activation-steering settings for gpt-oss-20b. Run configs use them with
+#   steering:
+#     defaults: configs/gpt_oss_20b/steering.yaml
+#     values: [fairness, justice]          # plus anything to override (e.g. alpha_fractions in a sweep)
+#
+# Vectors: scripts/shell/fit_steering_vectors.sh --model openai/gpt-oss-20b --layers 7-19 (31 VISPA values, PCA).
+# Layers: 11-16, where every value separates its pairs best (meta.json separation >= 0.90; edges drop to 0.54).
+# Strength: 3% of the steered layers' mean hidden-state norm (~2290, so |alpha| ~69), from the fairness alpha sweep
+#   (configs/gpt_oss_20b/alpha_sweep.yaml, 2026-11-12; figures in data/experiments/05_activation_steering/
+#   alpha_sweep_gpt_oss_20b/): up to 3% every answer is valid and rationales read normally; at 5% they degrade
+#   (-5%: 8-word rationales; +5%: 28% failed calls); from 10% the model breaks; 0.2% has no effect.
+#   Caveat: at +-3% both directions lowered the TOXIC rate (85% -> 72.5% / 68.5%), so the shift may not be specific
+#   to the value; a random-direction control is pending.
+
+vectors: data/processed/steering_vectors/gpt-oss-20b
+layers: "11-16"
+alpha_fractions: [0, -0.03, 0.03]          # unsteered, away from the value, toward it

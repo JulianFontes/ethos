@@ -24,7 +24,6 @@ import numpy as np
 import torch
 from sklearn.decomposition import PCA
 
-
 @torch.no_grad()
 def last_token_states(model, tokenizer, texts, layers):
     """{layer: (len(texts), hidden) float32 array}: each text's last-token state after decoder block `layer`."""
@@ -35,7 +34,6 @@ def last_token_states(model, tokenizer, texts, layers):
         for l in layers:
             out[l].append(hidden[l + 1][0, -1].float().cpu().numpy())
     return {l: np.stack(v) for l, v in out.items()}
-
 
 def directions_from_states(pos_states, neg_states, seed=0):
     """{layer: unit direction (float32)} from {layer: (pairs, hidden)} states of the for / against sentences (from HF
@@ -56,17 +54,14 @@ def directions_from_states(pos_states, neg_states, seed=0):
         directions[l] = (sign * v).astype(np.float32)
     return directions
 
-
 def fit_pca(model, tokenizer, pos, neg, layers, seed=0):
     """{layer: unit direction (float32 array)} pointing from `neg` toward `pos` sentences, with an HF model."""
     return directions_from_states(last_token_states(model, tokenizer, pos, layers),
                                   last_token_states(model, tokenizer, neg, layers), seed)
 
-
 def save_directions(path, directions):
     """One .npz per value, keys layer_<l>: the format plugins/vllm_steer reads."""
     np.savez(path, **{f"layer_{l}": d for l, d in directions.items()})
-
 
 def load_directions(path):
     with np.load(path) as f:

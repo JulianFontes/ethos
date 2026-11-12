@@ -1,10 +1,16 @@
-"""Steering figures: which decoder layers the steering vector is added to."""
+"""Steering figures.
+
+  plot_steering_layers  which decoder layers the steering vector is added to
+  plot_alpha_sweep      which steering strengths work: TOXIC rate, valid answers and rationale length per alpha
+"""
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.patches import FancyBboxPatch
 
-from ethos.plotting.style import INK, INK2, STYLE
+from ethos.plotting.style import GRID, INK, INK2, STYLE
 
 STEERED, OTHER = "#2a78d6", "#e4e3df"
+DOT = "#b8b7b0"
 
 
 def _cell(ax, x, y, color, h=0.7):
@@ -55,3 +61,43 @@ def _ranges(layers):
             parts.append(f"{start}–{a}" if a != start else str(a))
             start = b
     return "layers " + ", ".join(parts)
+
+
+def plot_alpha_sweep(summary, per_comment, path, title):
+    """Save three panels sharing the x-axis (steering strength, unsteered in the middle):
+      1. share of TOXIC answers: one grey dot per comment, the mean in blue, the unsteered mean as a dashed line
+      2. valid answers: answers / (answers + failed attempts), e.g. invalid JSON from over-steered text
+      3. median rationale length in words (over-steered text tends to collapse or ramble)
+    summary: one row per strength, sorted, with columns label, toxic, valid, words, unsteered (bool).
+    per_comment: columns label, toxic (one row per comment and strength)."""
+    x = np.arange(len(summary))
+    pos = dict(zip(summary.label, x))
+    base = summary[summary.unsteered].iloc[0]
+    with plt.rc_context(STYLE):
+        fig, axes = plt.subplots(3, 1, figsize=(9, 8.5), sharex=True, height_ratios=[2.2, 1, 1])
+        ax = axes[0]
+        jitter = np.random.default_rng(0).uniform(-0.12, 0.12, len(per_comment))
+        ax.scatter(per_comment.label.map(pos) + jitter, per_comment.toxic, s=14, color=DOT, linewidth=0, zorder=2)
+        ax.axhline(base.toxic, color=INK2, lw=1, ls=(0, (4, 3)), zorder=1)
+        ax.text(x[-1] + 0.35, base.toxic, "unsteered", va="center", fontsize=9, color=INK2)
+        ax.plot(x, summary.toxic, color=STEERED, lw=2, marker="o", ms=7, zorder=3)
+        ax.set_ylim(-0.04, 1.04)
+        ax.set_ylabel("Share TOXIC")
+        ax.text(0.0, 1.02, "grey: each comment (10 answers)   blue: mean over comments", transform=ax.transAxes,
+                fontsize=9, color=INK2, va="bottom")
+        panels = [(axes[1], summary.valid, "Valid answers", (0, 1.04)),
+                  (axes[2], summary.words, "Rationale words\n(median)", (0, None))]
+        for ax, y, label, lim in panels:
+            ax.plot(x, y, color=STEERED, lw=2, marker="o", ms=6)
+            ax.axhline(y[summary.unsteered].iloc[0], color=INK2, lw=1, ls=(0, (4, 3)))
+            ax.set_ylim(*lim)
+            ax.set_ylabel(label)
+        axes[1].yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.0%}"))
+        for ax in axes:
+            ax.axvline(pos[base.label], color=GRID, lw=6, zorder=0)
+        axes[2].set_xticks(x, summary.label)
+        axes[2].set_xlabel("Steering strength: fraction of the hidden-state norm (α)  —  negative = away from the value")
+        fig.suptitle(title, x=0.01, ha="left", fontsize=13, color=INK)
+        fig.tight_layout()
+        fig.savefig(path, dpi=200, bbox_inches="tight")
+        plt.close(fig)

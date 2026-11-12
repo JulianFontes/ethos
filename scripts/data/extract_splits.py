@@ -12,7 +12,7 @@ Writes to <output_dir>/:
 
 Usage:
     python scripts/data/extract_splits.py
-    python scripts/data/extract_splits.py --config configs/my_splits.yaml
+    python scripts/data/extract_splits.py --config configs/data/my_splits.yaml
 """
 import argparse
 import shutil
@@ -24,7 +24,7 @@ import yaml
 from ethos.data import build_splits, load_comments, load_votes
 from ethos.paths import ROOT
 
-DEFAULT_CONFIG = ROOT / "configs" / "splits.yaml"
+DEFAULT_CONFIG = ROOT / "configs" / "data" / "splits.yaml"
 
 
 def main():

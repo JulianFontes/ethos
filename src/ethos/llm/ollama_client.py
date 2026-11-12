@@ -1,7 +1,7 @@
 """Thin wrapper to reach any local model through Ollama's OpenAI-compatible endpoint.
 
 Setup: `ollama pull <model>` (Ollama must be running). The model and server are chosen
-by the caller, e.g. from configs/generation.yaml or configs/judges.yaml.
+by the caller, e.g. from configs/generation.yaml or configs/judges/judges.yaml.
 """
 import json
 

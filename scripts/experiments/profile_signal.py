@@ -81,10 +81,12 @@ def comment_order(sample, ids, seed=0):
 
 # --- collecting answers ----------------------------------------------------------------------------------------
 
-def collect(path, conds, texts, samples, model, workers, reasoning_effort="none", flush_every=500, attempts=3):
+def collect(path, conds, texts, samples, model, workers, reasoning_effort="none", flush_every=500, attempts=3,
+            max_tokens=None):
     """Ask the model for every (comment, condition, answer number) not yet in `path`, appending the answers in batches
     of `flush_every`. Each call is tried up to `attempts` times (1 s, 2 s, ... apart); calls that still fail are skipped
-    and retried on the next pass or run. Prints the speed (answers per second) and why calls failed."""
+    and retried on the next pass or run. Every failed attempt is appended to failures.csv next to `path` (for jobs,
+    <data>/failures/job_<i>of<N>.csv). Prints the speed (answers per second) and why calls failed."""
     done = set()
     if path.exists():
         r = pd.read_csv(path)
@@ -101,26 +103,33 @@ def collect(path, conds, texts, samples, model, workers, reasoning_effort="none"
     llm, client, name = connect(model)
 
     def ask(job):
+        """(job, answer or the last error, [error of each failed attempt])"""
         cid, c, _ = job
-        system = system_prompt(conds[c])
+        system, errors = system_prompt(conds[c]), []
         for attempt in range(attempts):
             try:
                 return job, llm.chat_json(client, name, system, f"Comment:\n{texts[cid]}", SCHEMA, temperature=1.0,
-                                          reasoning_effort=reasoning_effort)
+                                          reasoning_effort=reasoning_effort, max_tokens=max_tokens), errors
             except Exception as e:
                 error = e
+                errors.append(f"{type(e).__name__}: {str(e)[:200]}")
                 if attempt + 1 < attempts:
                     time.sleep(attempt + 1)
-        return job, error
+        return job, error, errors
 
-    def flush(rows):
+    # next to ratings.csv, or <data>/failures/job_<i>of<N>.csv for jobs (outside jobs/, which --merge reads)
+    failures_path = path.parent / "failures.csv" if path.name == "ratings.csv" else path.parent.parent / "failures" / path.name
+    failures_path.parent.mkdir(exist_ok=True)
+
+    def flush(rows, out=path):
         if rows:
-            pd.DataFrame(rows).to_csv(path, mode="a", header=not path.exists(), index=False)
+            pd.DataFrame(rows).to_csv(out, mode="a", header=not out.exists(), index=False)
         return []
 
     # Keep about 4 x workers requests in flight and send the next in order as each finishes: the server stays busy and
     # answers complete roughly in comment order (so checkpoints fill up one after another).
     rows, failed, start, todo = [], 0, time.perf_counter(), iter(jobs)
+    failed_attempts = []                             # every failed attempt -> failures.csv (e.g. invalid JSON)
     reasons = Counter()                              # why calls failed (after all attempts), e.g. JSONDecodeError
     with ThreadPoolExecutor(workers) as pool, tqdm(total=len(jobs), unit="answer") as bar:
         bar.set_postfix(failed=0)                    # calls that failed all attempts (asked again on the next pass)
@@ -128,10 +137,11 @@ def collect(path, conds, texts, samples, model, workers, reasoning_effort="none"
         while pending:
             finished, pending = wait(pending, return_when=FIRST_COMPLETED)
             for future in finished:
-                (cid, c, i), answer = future.result()
+                (cid, c, i), answer, errors = future.result()
                 bar.update(1)
                 if (job := next(todo, None)) is not None:
                     pending.add(pool.submit(ask, job))
+                failed_attempts += [{"id": cid, "condition": c, "rating": i, "error": e} for e in errors]
                 if isinstance(answer, Exception):
                     failed += 1
                     reasons[f"{type(answer).__name__}: {str(answer)[:120]}"] += 1
@@ -141,7 +151,9 @@ def collect(path, conds, texts, samples, model, workers, reasoning_effort="none"
                              "toxic": answer["evaluation"] == "TOXIC", "rationale": answer["rationale"]})
                 if len(rows) >= flush_every:
                     rows = flush(rows)
+                    failed_attempts = flush(failed_attempts, failures_path)
     flush(rows)
+    flush(failed_attempts, failures_path)
     seconds = time.perf_counter() - start
     if jobs:
         print(f"{len(jobs) - failed:,} answers in {seconds:.0f} s = {(len(jobs) - failed) / seconds:.1f} answers/s "
@@ -221,8 +233,12 @@ def main():
                    help="allow profile values that are not in prompts/taxonomy-values.txt")
     p.add_argument("--samples", type=int, default=10, help="answers per comment and condition")
     p.add_argument("--workers", type=int, default=16)
+    p.add_argument("--max-tokens", type=int, help="cap on generated tokens per answer, reasoning included (default: none)")
+    p.add_argument("--attempts", type=int, default=3, help="tries per call before it counts as failed")
+    p.add_argument("--passes", type=int, default=3, help="passes over the calls that failed all attempts")
     p.add_argument("--reasoning-effort", default="none",
                    help="none (thinking off; Qwen3, gpt-6-luna) or low / medium / high (models like gpt-oss that always reason)")
+    p.add_argument("--conditions", nargs="+", help='only these prompt conditions, e.g. "none" (no value in the prompt)')
     p.add_argument("--steer", help='tag for answers from an activation-steered server, e.g. "fairness@+4": each '
                    'condition becomes "<condition>|steer=<tag>" (set by submit_vllm.py from the config\'s steering:)')
     p.add_argument("--analyze-only", action="store_true")
@@ -241,6 +257,10 @@ def main():
         ids = args.ids or (texts.index.tolist() if args.all else uncertain_comments(args.n_comments))
         conds = prompt_conditions(load_values("prompts/taxonomy-values.txt"), args.weightings, args.single_values,
                                   args.profiles, args.any_values)
+        if args.conditions:                          # e.g. only "none": no value in the prompt
+            unknown = set(args.conditions) - set(conds)
+            assert not unknown, f"unknown conditions {sorted(unknown)}; choose from {list(conds)}"
+            conds = {c: conds[c] for c in args.conditions}
         conds = {condition_name(c, args.steer): text for c, text in conds.items()}   # tagged if the server is steered
         print(f"{len(conds)} conditions: {', '.join(conds)}")
         path = args.data / "ratings.csv"
@@ -253,8 +273,9 @@ def main():
             path = args.data / "jobs" / f"job_{args.job}of{args.num_jobs}.csv"
             path.parent.mkdir(exist_ok=True)
             print(f"job {args.job} of {args.num_jobs}: {len(ids)} comments")
-        for attempt in range(3):                     # retry failed calls (up to 3 passes)
-            if not collect(path, conds, texts.loc[ids], args.samples, args.model, args.workers, args.reasoning_effort):
+        for attempt in range(args.passes):           # retry failed calls (up to --passes passes)
+            if not collect(path, conds, texts.loc[ids], args.samples, args.model, args.workers, args.reasoning_effort,
+                           attempts=args.attempts, max_tokens=args.max_tokens):
                 break
         if args.num_jobs > 1:
             return print(f"job done; combine with: --merge --sample {args.sample} --data {args.data}")

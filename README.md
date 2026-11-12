@@ -18,10 +18,10 @@ judgements closer to human annotators on Civil Comments, especially on comments 
 
 | Step | Script | Config | Output (`data/`) |
 |---|---|---|---|
-| 1. Build train/test datasets | `scripts/data/extract_splits.py` | `configs/splits.yaml` | `processed/comments/` |
-| 2. Draw consensus-balanced samples | `scripts/data/extract_consensus_sample.py` | `configs/sample_consensus_{test,train}.yaml` | `processed/consensus_n125_{test,train}/` |
+| 1. Build train/test datasets | `scripts/data/extract_splits.py` | `configs/data/splits.yaml` | `processed/comments/` |
+| 2. Draw consensus-balanced samples | `scripts/data/extract_consensus_sample.py` | `configs/data/sample_consensus_{test,train}.yaml` | `processed/consensus_n125_{test,train}/` |
 | 2b. Embed comments (Sentence-BERT) | `scripts/data/embed_comments.py` | | `processed/comments/embeddings/embeddings.parquet` (samples read their rows from it) |
-| 3. Judge | `scripts/shell/run_judge.sh` (`scripts/judge.py`) | `configs/judges.yaml` | `judgements/<sample>/judgements.csv` |
+| 3. Judge | `scripts/shell/run_judge.sh` (`scripts/judge.py`) | `configs/judges/judges.yaml` | `judgements/<sample>/judgements.csv` |
 | 4. Compare judges to humans | `scripts/plots/eval_consensus_gap.py` | | `experiments/judge_alignment/<sample>/<name>/` |
 | Dataset figures | `scripts/plots/plot_consensus.py`, `plot_attributes.py` | | `experiments/dataset/{consensus,attributes}/` |
 | Embedding check | `scripts/data/check_neighbors.py` | | `experiments/embeddings/<folder>/neighbors.md` |
@@ -29,7 +29,7 @@ judgements closer to human annotators on Civil Comments, especially on comments 
 - **Samples:** 125 top-level, deduplicated comments with ≥ 30 annotators, 25 per consensus bin (0.5–1.0 in steps
   of 0.1). The **test** sample is for evaluation (Detoxify was trained on Jigsaw's train split); the **train**
   sample is for experiments and tuning.
-- **Judges** (`configs/judges.yaml`): `human`, `detoxify`, `gpt-6-luna-base` (minimal TOXIC / NOT TOXIC prompt,
+- **Judges** (`configs/judges/judges.yaml`): `human`, `detoxify`, `gpt-6-luna-base` (minimal TOXIC / NOT TOXIC prompt,
   10 answers) and `gpt-6-luna-dmp-random` (the same with a random 10-value profile per answer).
 
 ## Data and results
@@ -63,7 +63,7 @@ OpenAI judges. Raw data: Kaggle *Jigsaw Unintended Bias in Toxicity Classificati
 
 ```bash
 uv run python scripts/data/extract_splits.py
-uv run python scripts/data/extract_consensus_sample.py --config configs/sample_consensus_test.yaml
+uv run python scripts/data/extract_consensus_sample.py --config configs/data/sample_consensus_test.yaml
 scripts/shell/run_judge.sh                       # --only <judge>, --limit 3 for a quick test
 uv run python scripts/plots/eval_consensus_gap.py
 uv run python scripts/experiments/profile_signal.py --all --single-values \
@@ -78,7 +78,7 @@ FASRC GPU node with its own Ollama server.
 ## Layout
 
 ```
-configs/     splits, sample and judge configs
+configs/     data/ (splits, samples), judges/, and one folder per model (qwen3_8b/, gpt_oss_20b/) with its vLLM runs, smoke tests and steering runs
 prompts/     judge prompts, 60-value taxonomy, profiles/ (hand-written moral profiles)
 scripts/     data/, judge.py, plots/, experiments/, shell/
 src/ethos/   paths.py, data.py, scores.py, sources.py, judges/, llm/ (OpenAI and Ollama clients, DMP profiles), plotting/

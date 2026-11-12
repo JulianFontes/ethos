@@ -1,25 +1,25 @@
 # A distributed run of scripts/experiments/profile_signal.py on the cluster, submitted with
-#   scripts/shell/submit_vllm.sh --config configs/vllm_run.yaml [--dry-run]
+#   scripts/shell/submit_vllm.sh --config configs/gpt_oss_20b/single_values.yaml [--dry-run]
 # Each job is one Slurm array task (submitted with submitit): one A100 that starts its own vLLM server and handles
 # every Nth comment of a fixed, band-balanced order. A job that runs out of time is requeued and resumes.
 # Combine the jobs any time with the merge command the script prints.
 
-model: Qwen/Qwen3-8B-FP8                   # Hugging Face id, served by vLLM (FP8 weights, ~9 GB; bf16 Qwen/Qwen3-8B is ~16 GB)
+model: openai/gpt-oss-20b                    # Hugging Face id, served by vLLM (MXFP4 MoE, ~13 GB; 3.6B active parameters)
 sample: data/processed/consensus_n1000_train/sample.csv
-data: data/processed/consensus_n1000_train/single_values_qwen3_8b_fp8   # answers, scores and checkpoints go here
+data: data/processed/consensus_n1000_train/single_values_gpt_oss_20b   # answers, scores and checkpoints go here
 # ids: [240450, 1020342]                   # optional: only these comments (default: every comment in the sample)
 
 # What to ask (see profile_signal.py)
 single_values: true                        # each of the 60 taxonomy values alone (false: the profiles in prompts/profiles)
 samples: 10                                # answers per comment and condition
-reasoning_effort: none                     # none = thinking off (Qwen3); low / medium / high for gpt-oss
-workers: 256                               # requests in flight per node = vLLM --max-num-seqs (gpu_test: ~128; full A100 on gpu: ~256)
+reasoning_effort: low                      # gpt-oss always reasons; low is its cheapest setting
+workers: 256                               # requests in flight per node = vLLM --max-num-seqs (gpu_test smoke test: 13% of KV cache at 64, ~220 tokens/answer)
 checkpoint_every: 100                      # comments per checkpoint when merging
 
 # Cluster
 job_size: 500                              # comments per job (= per node). Keep the job count (2) when resuming: job i of N owns its comments
 max_nodes: 2                               # never more jobs than this; bigger jobs instead
-time: "04:00:00"                           # per job (resumed runs need less)
-partition: seas_gpu                         # SEAS A100 80GB / H200 nodes (gpu_test: 20 GB MIG slice, max 2 jobs per user, 12 h)
+time: "12:00:00"                           # per job (gpu_test maximum; requeued and resumed if it runs out)
+partition: gpu_test                        # 20 GB A100 MIG slice; ~13.8 GB of weights leaves ~2 GB (45k tokens) for KV cache (QOS: max 2 jobs per user, 12 h)
 account: protopapas_lab
 scratch: /n/netscratch/protopapas_lab/Lab/$USER   # vLLM and model downloads (several GB + ~16 GB) are cached here

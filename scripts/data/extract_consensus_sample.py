@@ -1,7 +1,7 @@
 """Draw an equal number of comments from each consensus bin (consensus = max(p, 1 - p)).
 
 Reads the combined dataset from scripts/data/extract_splits.py, keeps one split (test by default), bins comments by
-consensus and draws `per_bin` from each. Settings live in configs/sample_consensus_test.yaml; the logic lives in
+consensus and draws `per_bin` from each. Settings live in configs/data/sample_consensus_test.yaml; the logic lives in
 ethos.data (bin_column, sample_per_bin).
 
 Writes to <output_dir>/:
@@ -10,7 +10,7 @@ Writes to <output_dir>/:
 
 Usage:
     python scripts/data/extract_consensus_sample.py
-    python scripts/data/extract_consensus_sample.py --config configs/my_consensus_sample.yaml
+    python scripts/data/extract_consensus_sample.py --config configs/data/my_consensus_sample.yaml
 """
 import argparse
 import shutil
@@ -22,7 +22,7 @@ import yaml
 from ethos.data import bin_column, sample_per_bin
 from ethos.paths import ROOT
 
-DEFAULT_CONFIG = ROOT / "configs" / "sample_consensus_test.yaml"
+DEFAULT_CONFIG = ROOT / "configs" / "data" / "sample_consensus_test.yaml"
 
 
 def main():

@@ -1,6 +1,6 @@
 """Judges that label each comment version allow/remove, and score it where they can (see scripts/judge.py).
 
-Each judge is an entry in configs/judges.yaml; its `type` picks the implementation.
+Each judge is an entry in configs/judges/judges.yaml; its `type` picks the implementation.
 """
 from ethos.judges import detoxify_judge, human_judge, llm_judge
 

@@ -6,6 +6,7 @@ does nothing unless asked:
 
 Steering  ETHOS_STEER=<value.npz> (keys layer_<l>, written by ethos.steering.activation.save_directions) and ETHOS_STEER_ALPHA=<α>:
           after each decoder layer l in the file, α × direction_l is added to the residual stream at every position.
+          ETHOS_STEER_LAYERS="11,12,13" (optional) steers only those of the file's layers.
           vLLM layers return (output, residual) and add the two at the start of the next layer (fused add + norm), so
           the stream after layer l is output + residual, and adding to `residual` equals ethos.steering.activation.steer's hook
           on the HF layer output. set_steering (through LLM.collective_rpc) replaces the vectors in place.
@@ -31,8 +32,8 @@ def _patch(cls):
         init(self, *args, prefix=prefix, **kwargs)
         self.ethos_layer = int(prefix.rsplit(".", 1)[-1])          # "model.layers.12" -> 12
         _LAYERS.append(self)
-        path = os.environ.get("ETHOS_STEER")
-        if path:
+        path, only = os.environ.get("ETHOS_STEER"), os.environ.get("ETHOS_STEER_LAYERS")
+        if path and (not only or self.ethos_layer in {int(l) for l in only.split(",")}):
             with np.load(path) as f:
                 key = f"layer_{self.ethos_layer}"
                 if key in f.files:                                   # created on the model's device and dtype
@@ -66,8 +67,9 @@ def register():
             cls._ethos_patched = True
         patched.append(f"{module}.{name}")
     if os.environ.get("ETHOS_STEER"):
-        log.warning("ethos_vllm_steer: steering with %s, alpha %s (patched %s)", os.environ["ETHOS_STEER"],
-                    os.environ.get("ETHOS_STEER_ALPHA", "1"), ", ".join(patched))
+        log.warning("ethos_vllm_steer: steering with %s, alpha %s, layers %s (patched %s)", os.environ["ETHOS_STEER"],
+                    os.environ.get("ETHOS_STEER_ALPHA", "1"), os.environ.get("ETHOS_STEER_LAYERS", "all in the file"),
+                    ", ".join(patched))
 
 
 # --- called inside the worker through LLM.collective_rpc(fn, args=...) -------------------------------------------

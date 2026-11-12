@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the judges (configs/judges.yaml) over every comment of the sample.
+# Run the judges (configs/judges/judges.yaml) over every comment of the sample.
 #
 # Usage:
 #   scripts/shell/run_judge.sh                                         # all judges

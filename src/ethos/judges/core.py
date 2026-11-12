@@ -2,7 +2,7 @@
 
 Every judge writes rows to one long CSV, data/judgements/<sample>/judgements.csv:
     id, version, text, judge, score, decision, rationale, profile, kaleido, ratings
-`judge` is the judge's name from configs/judges.yaml (the human annotations are the `human` judge's rows);
+`judge` is the judge's name from configs/judges/judges.yaml (the human annotations are the `human` judge's rows);
 `score` is the toxicity score (for LLM judges, ethos.scores.toxicity_score of its answers); `profile` is the moral
 profile a DMP judge was given; `ratings` holds an LLM judge's individual answers (JSON list). `version` (always
 "original") and `kaleido` (always empty) are kept so older judgements.csv files stay readable.
@@ -28,7 +28,7 @@ LLM_TYPES = {"ollama_minimal", "ollama_minimal_dmp"}
 
 
 def load_judges(path):
-    """Judge configs from configs/judges.yaml; LLM judges are merged over `llm_defaults`."""
+    """Judge configs from configs/judges/judges.yaml; LLM judges are merged over `llm_defaults`."""
     cfg = load_config(path)
     defaults = cfg.get("llm_defaults", {})
     return [{**defaults, **judge} if judge["type"] in LLM_TYPES else judge for judge in cfg["judges"]]

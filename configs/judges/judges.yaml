@@ -1,6 +1,6 @@
 # Every judge, run in order by scripts/judge.py. Each `name` is the value written to the `judge` column; `type`
 # picks the implementation (human, detoxify, ollama_minimal / openai_minimal).
-# Older judges (allow/remove base and DMP, annotator-instruction judges) are archived in .archive/configs/judges.yaml.
+# Older judges (allow/remove base and DMP, annotator-instruction judges) are archived in .archive/configs/judges/judges.yaml.
 # Fixed-profile experiments run through scripts/experiments/profile_signal.py instead.
 
 # Sample to judge: its sample.csv (comments and human labels); results go to data/judgements/<folder name>/.

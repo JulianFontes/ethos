@@ -1,4 +1,4 @@
-"""Submit a distributed profile_signal.py run described by a YAML config (e.g. configs/vllm_run.yaml), with submitit.
+"""Submit a distributed profile_signal.py run described by a YAML config (e.g. configs/qwen3_8b/single_values.yaml), with submitit.
 
 Splits the sample into ceil(comments / job_size) jobs, at most max_nodes (bigger jobs instead, all running at once so
 checkpoints keep filling up), and submits them as one Slurm array. Each job, on its own A100:
@@ -11,8 +11,8 @@ The run folder gets steering_layers.png and steering.json (which layers, vectors
 A job that hits its time limit is requeued automatically and resumes from the answers already saved.
 
 Run from a cluster login node (scripts/shell/submit_vllm.sh does the setup):
-    scripts/shell/submit_vllm.sh --config configs/vllm_run.yaml --dry-run     # show the plan
-    scripts/shell/submit_vllm.sh --config configs/vllm_run.yaml
+    scripts/shell/submit_vllm.sh --config configs/qwen3_8b/single_values.yaml --dry-run     # show the plan
+    scripts/shell/submit_vllm.sh --config configs/qwen3_8b/single_values.yaml
 Logs go next to the answers, in <data>/logs/: <array id>_<task>/ (job output) and vllm-<array id>_<task>.log (the server;
 appended to when a job is requeued).
 """
@@ -30,7 +30,7 @@ import submitit
 import yaml
 
 from ethos.paths import ROOT
-from ethos.steering.in_vllm import save_run_figure, steering_server, steering_settings
+from ethos.steering.in_vllm import resolve_steering, save_run_figure, steering_server, steering_settings
 
 
 class Job(submitit.helpers.Checkpointable):
@@ -45,7 +45,13 @@ class Job(submitit.helpers.Checkpointable):
         task = (f"{os.environ['SLURM_ARRAY_JOB_ID']}_{os.environ['SLURM_ARRAY_TASK_ID']}" if "SLURM_ARRAY_JOB_ID" in os.environ
                 else os.environ.get("SLURM_JOB_ID", "local"))   # same name as the job's submitit folder
         log = log_dir(cfg) / f"vllm-{task}.log"
+        done_dir = ROOT / cfg["data"] / "done"                      # finished (job, setting) markers
+        done_dir.mkdir(parents=True, exist_ok=True)
         for tag, vector, alpha in steering_settings(cfg.get("steering")):   # one server each (just one without)
+            done = done_dir / f"job_{job}of{n_jobs}_{tag or 'unsteered'}"
+            if done.exists():                                       # resumed after a timeout: skip finished settings
+                print(f"=== {tag or 'unsteered'}: already done ===", flush=True)
+                continue
             if tag:
                 print(f"=== steering {tag}: {vector}, alpha {alpha} ===", flush=True)
             env, port, server = self.start_server(log, vector, alpha)
@@ -53,6 +59,8 @@ class Job(submitit.helpers.Checkpointable):
                 subprocess.run([sys.executable, str(ROOT / "scripts/experiments/profile_signal.py"), *run_args(cfg),
                                 "--job", str(job), "--num-jobs", str(n_jobs)] + (["--steer", tag] if tag else []),
                                cwd=ROOT, env=env, check=True)
+                if cfg.get("steering"):
+                    done.touch()
             finally:
                 server.terminate()
                 server.wait()                                       # free the GPU before the next setting
@@ -65,7 +73,7 @@ class Job(submitit.helpers.Checkpointable):
         env.update(UV_CACHE_DIR=f"{scratch}/uv-cache", HF_HOME=f"{scratch}/huggingface", PYTHONUNBUFFERED="1",
                    PYTHONPATH=f"{ROOT}/src", VLLM_BASE_URL=f"http://127.0.0.1:{port}/v1",
                    VLLM_USE_FLASHINFER_SAMPLER="0")   # its sampler compiles CUDA code, but nvcc is not on the GPU nodes
-        steer_env, plugin = steering_server(vector, alpha)       # nothing for an unsteered server
+        steer_env, plugin = steering_server(vector, alpha, (cfg.get("steering") or {}).get("layers"))   # nothing if unsteered
         env.update(steer_env)
         with open(log, "a") as f:
             f.write(f"\n=== vllm serve {cfg['model']}" + (f", steering {vector} alpha {alpha}" if vector else "") + " ===\n")
@@ -108,7 +116,10 @@ def run_args(cfg):
             "--reasoning-effort", cfg["reasoning_effort"]] + (["--single-values"] if cfg["single_values"] else []) \
         + (["--profiles", cfg["profiles"]] if cfg.get("profiles") else []) \
         + (["--weightings", *cfg["weightings"]] if cfg.get("weightings") else []) \
-        + (["--any-values"] if cfg.get("any_values") else [])
+        + (["--any-values"] if cfg.get("any_values") else []) \
+        + (["--conditions", *cfg["conditions"]] if cfg.get("conditions") else []) \
+        + [arg for key in ("max_tokens", "attempts", "passes") if key in cfg
+           for arg in (f"--{key.replace('_', '-')}", str(cfg[key]))]
 
 
 def main():
@@ -117,6 +128,7 @@ def main():
     p.add_argument("--dry-run", action="store_true", help="show the plan without submitting")
     args = p.parse_args()
     cfg = yaml.safe_load(open(ROOT / args.config))
+    cfg["steering"] = resolve_steering(cfg.get("steering"))   # merge the model's steering defaults file
 
     n_comments = len(cfg["ids"]) if cfg.get("ids") else len(pd.read_csv(ROOT / cfg["sample"], usecols=["id"]))
     n_jobs = math.ceil(n_comments / cfg["job_size"])

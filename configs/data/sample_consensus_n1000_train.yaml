@@ -1,5 +1,5 @@
 # Config for scripts/data/extract_consensus_sample.py: 1,000 train comments (200 per consensus bin) for the value policy,
-# with the same filters, bins and seed as configs/sample_consensus_train.yaml (whose 125 comments it should contain).
+# with the same filters, bins and seed as configs/data/sample_consensus_train.yaml (whose 125 comments it should contain).
 
 source: data/processed/comments/comments.csv
 split: train          # tuning set; the test sample stays held out

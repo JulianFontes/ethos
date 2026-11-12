@@ -1,5 +1,5 @@
 # Smoke test: checks that vLLM starts, answers come back, and measures the speed (answers/s in the job log).
-#   scripts/shell/submit_vllm.sh --config configs/vllm_smoke.yaml [--dry-run]
+#   scripts/shell/submit_vllm.sh --config configs/qwen3_8b/smoke.yaml [--dry-run]
 # Each job is one Slurm array task (submitted with submitit): one A100 that starts its own vLLM server and handles
 # every Nth comment of a fixed, band-balanced order. A job that runs out of time is requeued and resumes.
 # Combine the jobs any time with the merge command the script prints.

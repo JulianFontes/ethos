@@ -1,5 +1,5 @@
 # Smoke test for gpt-oss-20b: checks that vLLM starts on a gpu_test slice, answers come back, and measures the speed.
-#   scripts/shell/submit_vllm.sh --config configs/vllm_smoke_gptoss.yaml [--dry-run]
+#   scripts/shell/submit_vllm.sh --config configs/gpt_oss_20b/smoke.yaml [--dry-run]
 # Each job is one Slurm array task (submitted with submitit): one A100 that starts its own vLLM server and handles
 # every Nth comment of a fixed, band-balanced order. A job that runs out of time is requeued and resumes.
 # Combine the jobs any time with the merge command the script prints.
