@@ -88,7 +88,10 @@ def run_args(cfg):
     comments = ["--ids", *map(str, cfg["ids"])] if cfg.get("ids") else ["--all"]
     return [*comments, "--model", f"vllm:{cfg['model']}", "--sample", cfg["sample"], "--data", cfg["data"],
             "--samples", str(cfg["samples"]), "--workers", str(cfg["workers"]),
-            "--reasoning-effort", cfg["reasoning_effort"]] + (["--single-values"] if cfg["single_values"] else [])
+            "--reasoning-effort", cfg["reasoning_effort"]] + (["--single-values"] if cfg["single_values"] else []) \
+        + (["--profiles", cfg["profiles"]] if cfg.get("profiles") else []) \
+        + (["--weightings", *cfg["weightings"]] if cfg.get("weightings") else []) \
+        + (["--any-values"] if cfg.get("any_values") else [])
 
 
 def main():

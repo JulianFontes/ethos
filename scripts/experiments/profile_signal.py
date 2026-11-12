@@ -1,7 +1,8 @@
 """Profile signal: do moral profiles change the LLM's TOXIC / NOT TOXIC answers?
 
 Conditions (each asked `--samples` times per comment, minimal prompt, plus a no-profile baseline "none"):
-  default          every profile in prompts/profiles/*.yaml, under each `--weightings`:
+  default          every profile in `--profiles` (a folder of YAML files, default prompts/profiles), under each
+                   `--weightings`:
                      as-is     the file's weights
                      equal     every value the same weight
                      reversed  the file's weights in reverse order
@@ -45,6 +46,7 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 
 import pandas as pd
+import yaml
 from tqdm import tqdm
 
 from ethos.judges.llm_judge import SCHEMA, load_profile
@@ -69,13 +71,18 @@ def uncertain_comments(n):
     return (score - 0.5).abs().sort_values().index[:n].tolist()
 
 
-def conditions(taxonomy, weightings=WEIGHTINGS, single_values=False):
-    """{condition name: profile text for the prompt}; "none" (empty text) = no profile."""
+def conditions(taxonomy, weightings=WEIGHTINGS, single_values=False, profiles=Path("prompts/profiles"),
+               any_values=False):
+    """{condition name: profile text for the prompt}; "none" (empty text) = no profile. Profiles are the YAML files in
+    `profiles`; their values must be in `taxonomy` unless `any_values` (e.g. for profiles from another framework)."""
     out = {"none": ""}
     if single_values:
         return out | {f"{v}|as-is": format_profile([(v, 1.0)]) for v in taxonomy}
-    for path in sorted((ROOT / "prompts/profiles").glob("*.yaml")):
-        profile = load_profile(path.relative_to(ROOT), taxonomy)
+    paths = sorted((ROOT / profiles).glob("*.yaml"))
+    assert paths, f"no profiles (*.yaml) in {profiles}"
+    for path in paths:
+        names = list(yaml.safe_load(path.read_text())["values"]) if any_values else taxonomy
+        profile = load_profile(path.relative_to(ROOT), names)
         values, weights = [v for v, _ in profile], [w for _, w in profile]
         variants = {"as-is": profile, "equal": [(v, 1 / len(values)) for v in values],
                     "reversed": list(zip(values, weights[::-1]))}
@@ -230,6 +237,10 @@ def main():
     p.add_argument("--ids", nargs="+", type=int, help="specific comment ids")
     p.add_argument("--weightings", nargs="+", default=WEIGHTINGS, choices=WEIGHTINGS)
     p.add_argument("--single-values", action="store_true", help="each taxonomy value alone instead of the profiles")
+    p.add_argument("--profiles", type=Path, default=Path("prompts/profiles"),
+                   help="folder of profile YAML files, e.g. prompts/profiles/vispa-moral-profile")
+    p.add_argument("--any-values", action="store_true",
+                   help="allow profile values that are not in prompts/taxonomy-values.txt")
     p.add_argument("--samples", type=int, default=10, help="answers per comment and condition")
     p.add_argument("--workers", type=int, default=16)
     p.add_argument("--reasoning-effort", default="none",
@@ -248,7 +259,9 @@ def main():
         sample = pd.read_csv(args.sample)
         texts = sample.set_index("id").comment_text
         ids = args.ids or (texts.index.tolist() if args.all else uncertain_comments(args.n_comments))
-        conds = conditions(load_values("prompts/taxonomy-values.txt"), args.weightings, args.single_values)
+        conds = conditions(load_values("prompts/taxonomy-values.txt"), args.weightings, args.single_values,
+                           args.profiles, args.any_values)
+        print(f"{len(conds)} conditions: {', '.join(conds)}")
         path = args.data / "ratings.csv"
         if args.num_jobs > 1:                      # this job's share of a fixed, band-balanced order
             order = comment_order(sample, ids)

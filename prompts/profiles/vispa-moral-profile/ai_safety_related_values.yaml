@@ -1,0 +1,6 @@
+# AI Safety-Related Values (4)
+values:
+  Fairness: 1.0
+  Truthfulness: 1.0
+  Toxicity: 1.0
+  Harmfulness: 1.0
