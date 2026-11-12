@@ -1,0 +1,13 @@
+[project]
+name = "ethos-vllm-steer"
+version = "0.1.0"
+description = "vLLM plugin: PCA activation steering and hidden-state capture for ethos (see ethos_vllm_steer/__init__.py)"
+requires-python = ">=3.10"
+dependencies = []                      # runs inside vLLM's environment; uses only what vLLM already has (torch, numpy)
+
+[project.entry-points."vllm.general_plugins"]
+ethos_steer = "ethos_vllm_steer:register"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

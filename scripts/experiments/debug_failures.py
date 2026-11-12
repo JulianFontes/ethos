@@ -26,8 +26,7 @@ from ethos.judges.llm_judge import SCHEMA
 from ethos.llm import vllm_client
 from ethos.llm.dmp import load_values
 from ethos.paths import ROOT
-
-import profile_signal as ps   # same prompts and conditions as the run
+from ethos.steering.prompt import prompt_conditions, system_prompt   # same prompts and conditions as the run
 
 
 def gap_pairs(data, samples, n_conds):
@@ -56,7 +55,7 @@ def main():
     data, out = ROOT / args.data, ROOT / args.out
     out.mkdir(parents=True, exist_ok=True)
 
-    conds = ps.conditions(load_values("prompts/taxonomy-values.txt"), single_values=True)
+    conds = prompt_conditions(load_values("prompts/taxonomy-values.txt"), single_values=True)
     texts = pd.read_csv(ROOT / args.sample).set_index("id").comment_text
     gaps, ok = gap_pairs(data, args.samples, len(conds))
     rng = random.Random(0)
@@ -65,13 +64,12 @@ def main():
     print(f"{len(gaps)} gap pairs and {len(controls)} control pairs, {args.repeats} times each")
 
     client = vllm_client.get_client(args.model)
-    base, dmp = ps.BASE_PROMPT.read_text().strip(), ps.DMP_PROMPT.read_text().strip()
     extra = ({"chat_template_kwargs": {"enable_thinking": False}} if args.reasoning_effort == "none"
              else {"reasoning_effort": args.reasoning_effort})
 
     def ask(task):
         group, (cid, c) = task
-        system = dmp.replace("{profile}", conds[c]) if conds[c] else base
+        system = system_prompt(conds[c])
         row = {"group": group, "id": cid, "condition": c}
         try:
             resp = client.chat.completions.create(

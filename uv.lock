@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.14"
 resolution-markers = [
     "sys_platform == 'win32'",
@@ -340,6 +340,7 @@ dependencies = [
     { name = "pandas" },
     { name = "pyarrow" },
     { name = "pyyaml" },
+    { name = "scikit-learn" },
     { name = "sentence-transformers" },
     { name = "submitit" },
     { name = "tqdm" },
@@ -362,6 +363,7 @@ requires-dist = [
     { name = "pandas" },
     { name = "pyarrow", specifier = ">=26.0.1" },
     { name = "pyyaml" },
+    { name = "scikit-learn", specifier = ">=1.9.1" },
     { name = "sentence-transformers", specifier = ">=6.2.0" },
     { name = "submitit", specifier = ">=1.5.4" },
     { name = "tqdm" },

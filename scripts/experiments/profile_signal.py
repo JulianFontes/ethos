@@ -7,6 +7,8 @@ Conditions (each asked `--samples` times per comment, minimal prompt, plus a no-
                      equal     every value the same weight
                      reversed  the file's weights in reverse order
   --single-values  each value of the taxonomy alone at weight 1 ("<value>|as-is")
+  (prompt steering: ethos.steering.prompt). With --steer <tag> (set by submit_vllm.py when the vLLM server is
+  activation-steered), every condition is named "<condition>|steer=<tag>".
 
 Comments: the `--n-comments` train comments whose random-DMP answers were most mixed, or `--all` of them, or `--ids`.
 
@@ -46,20 +48,17 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 
 import pandas as pd
-import yaml
 from tqdm import tqdm
 
-from ethos.judges.llm_judge import SCHEMA, load_profile
+from ethos.judges.llm_judge import SCHEMA
 from ethos.llm import connect
-from ethos.llm.dmp import format_profile, load_values
+from ethos.llm.dmp import load_values
 from ethos.paths import ROOT, TRAIN_SAMPLE
 from ethos.scores import score_table, toxicity_score
 from ethos.sources import write_sources
+from ethos.steering.prompt import WEIGHTINGS, condition_name, prompt_conditions, system_prompt
 
 RANDOM_DMP = ROOT / "data/judgements/consensus_n125_train/judgements.csv"
-BASE_PROMPT = ROOT / "prompts/judge_minimal.txt"
-DMP_PROMPT = ROOT / "prompts/judge_minimal_pluralistic.txt"
-WEIGHTINGS = ["as-is", "equal", "reversed"]
 
 
 # --- setup -----------------------------------------------------------------------------------------------------
@@ -69,26 +68,6 @@ def uncertain_comments(n):
     j = pd.read_csv(RANDOM_DMP)
     score = j[j.judge == "gpt-6-luna-dmp-random"].set_index("id").score
     return (score - 0.5).abs().sort_values().index[:n].tolist()
-
-
-def conditions(taxonomy, weightings=WEIGHTINGS, single_values=False, profiles=Path("prompts/profiles"),
-               any_values=False):
-    """{condition name: profile text for the prompt}; "none" (empty text) = no profile. Profiles are the YAML files in
-    `profiles`; their values must be in `taxonomy` unless `any_values` (e.g. for profiles from another framework)."""
-    out = {"none": ""}
-    if single_values:
-        return out | {f"{v}|as-is": format_profile([(v, 1.0)]) for v in taxonomy}
-    paths = sorted((ROOT / profiles).glob("*.yaml"))
-    assert paths, f"no profiles (*.yaml) in {profiles}"
-    for path in paths:
-        names = list(yaml.safe_load(path.read_text())["values"]) if any_values else taxonomy
-        profile = load_profile(path.relative_to(ROOT), names)
-        values, weights = [v for v, _ in profile], [w for _, w in profile]
-        variants = {"as-is": profile, "equal": [(v, 1 / len(values)) for v in values],
-                    "reversed": list(zip(values, weights[::-1]))}
-        for w in weightings:
-            out[f"{path.stem}|{w}"] = format_profile(variants[w])
-    return out
 
 
 def comment_order(sample, ids, seed=0):
@@ -120,11 +99,10 @@ def collect(path, conds, texts, samples, model, workers, reasoning_effort="none"
           + (f" ({gaps} first, to finish {len({j[0] for j in jobs[:gaps]})} started comments)" if gaps else ""))
 
     llm, client, name = connect(model)
-    base, dmp = BASE_PROMPT.read_text().strip(), DMP_PROMPT.read_text().strip()
 
     def ask(job):
         cid, c, _ = job
-        system = dmp.replace("{profile}", conds[c]) if conds[c] else base
+        system = system_prompt(conds[c])
         for attempt in range(attempts):
             try:
                 return job, llm.chat_json(client, name, system, f"Comment:\n{texts[cid]}", SCHEMA, temperature=1.0,
@@ -245,6 +223,8 @@ def main():
     p.add_argument("--workers", type=int, default=16)
     p.add_argument("--reasoning-effort", default="none",
                    help="none (thinking off; Qwen3, gpt-6-luna) or low / medium / high (models like gpt-oss that always reason)")
+    p.add_argument("--steer", help='tag for answers from an activation-steered server, e.g. "fairness@+4": each '
+                   'condition becomes "<condition>|steer=<tag>" (set by submit_vllm.py from the config\'s steering:)')
     p.add_argument("--analyze-only", action="store_true")
     p.add_argument("--job", type=int, default=int(os.environ.get("SLURM_ARRAY_TASK_ID", 0)))
     p.add_argument("--num-jobs", type=int, default=int(os.environ.get("SLURM_ARRAY_TASK_COUNT", 1)))
@@ -259,8 +239,9 @@ def main():
         sample = pd.read_csv(args.sample)
         texts = sample.set_index("id").comment_text
         ids = args.ids or (texts.index.tolist() if args.all else uncertain_comments(args.n_comments))
-        conds = conditions(load_values("prompts/taxonomy-values.txt"), args.weightings, args.single_values,
-                           args.profiles, args.any_values)
+        conds = prompt_conditions(load_values("prompts/taxonomy-values.txt"), args.weightings, args.single_values,
+                                  args.profiles, args.any_values)
+        conds = {condition_name(c, args.steer): text for c, text in conds.items()}   # tagged if the server is steered
         print(f"{len(conds)} conditions: {', '.join(conds)}")
         path = args.data / "ratings.csv"
         if args.num_jobs > 1:                      # this job's share of a fixed, band-balanced order

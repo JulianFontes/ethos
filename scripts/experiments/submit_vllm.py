@@ -5,6 +5,9 @@ checkpoints keep filling up), and submits them as one Slurm array. Each job, on 
   1. starts a vLLM server for the model (in its own environment, via uvx),
   2. runs profile_signal.py on its share of the comments (--job i --num-jobs N),
   3. stops the server.
+With a `steering:` section (vectors from scripts/shell/fit_steering_vectors.sh, values, alphas), steps 1-3 repeat for
+each (value, alpha): the server gets plugins/vllm_steer, and every condition is tagged "|steer=<value>@<alpha>".
+The run folder gets steering_layers.png and steering.json (which layers, vectors and strengths).
 A job that hits its time limit is requeued automatically and resumes from the answers already saved.
 
 Run from a cluster login node (scripts/shell/submit_vllm.sh does the setup):
@@ -21,13 +24,13 @@ import subprocess
 import sys
 import time
 import urllib.request
-from pathlib import Path
 
 import pandas as pd
 import submitit
 import yaml
 
-ROOT = Path(__file__).resolve().parents[2]
+from ethos.paths import ROOT
+from ethos.steering.in_vllm import save_run_figure, steering_server, steering_settings
 
 
 class Job(submitit.helpers.Checkpointable):
@@ -38,37 +41,51 @@ class Job(submitit.helpers.Checkpointable):
         self.cfg = cfg
 
     def __call__(self, job, n_jobs):
+        cfg = self.cfg
+        task = (f"{os.environ['SLURM_ARRAY_JOB_ID']}_{os.environ['SLURM_ARRAY_TASK_ID']}" if "SLURM_ARRAY_JOB_ID" in os.environ
+                else os.environ.get("SLURM_JOB_ID", "local"))   # same name as the job's submitit folder
+        log = log_dir(cfg) / f"vllm-{task}.log"
+        for tag, vector, alpha in steering_settings(cfg.get("steering")):   # one server each (just one without)
+            if tag:
+                print(f"=== steering {tag}: {vector}, alpha {alpha} ===", flush=True)
+            env, port, server = self.start_server(log, vector, alpha)
+            try:
+                subprocess.run([sys.executable, str(ROOT / "scripts/experiments/profile_signal.py"), *run_args(cfg),
+                                "--job", str(job), "--num-jobs", str(n_jobs)] + (["--steer", tag] if tag else []),
+                               cwd=ROOT, env=env, check=True)
+            finally:
+                server.terminate()
+                server.wait()                                       # free the GPU before the next setting
+
+    def start_server(self, log, vector=None, alpha=None):
+        """Start `vllm serve` (with the steering plugin when `vector` is given) and wait until it answers."""
         cfg, env = self.cfg, dict(os.environ)
         port = free_port()   # nodes are shared (one job per GPU slice), so a fixed port can already be taken
         scratch = os.path.expandvars(cfg["scratch"])
         env.update(UV_CACHE_DIR=f"{scratch}/uv-cache", HF_HOME=f"{scratch}/huggingface", PYTHONUNBUFFERED="1",
                    PYTHONPATH=f"{ROOT}/src", VLLM_BASE_URL=f"http://127.0.0.1:{port}/v1",
                    VLLM_USE_FLASHINFER_SAMPLER="0")   # its sampler compiles CUDA code, but nvcc is not on the GPU nodes
-        task = (f"{os.environ['SLURM_ARRAY_JOB_ID']}_{os.environ['SLURM_ARRAY_TASK_ID']}" if "SLURM_ARRAY_JOB_ID" in os.environ
-                else os.environ.get("SLURM_JOB_ID", "local"))   # same name as the job's submitit folder
-        log = log_dir(cfg) / f"vllm-{task}.log"
+        steer_env, plugin = steering_server(vector, alpha)       # nothing for an unsteered server
+        env.update(steer_env)
+        with open(log, "a") as f:
+            f.write(f"\n=== vllm serve {cfg['model']}" + (f", steering {vector} alpha {alpha}" if vector else "") + " ===\n")
         server = subprocess.Popen(
-            ["uvx", "--managed-python", "--python", "3.12", "--from", "vllm==0.33.0", "vllm", "serve", cfg["model"], "--port", str(port),
-             "--max-model-len", "4096", "--gpu-memory-utilization", "0.90",
+            ["uvx", "--managed-python", "--python", "3.12", *plugin, "--from", "vllm==0.33.0", "vllm", "serve",
+             cfg["model"], "--port", str(port), "--max-model-len", "4096", "--gpu-memory-utilization", "0.90",
              "--max-num-seqs", str(cfg["workers"])],   # vLLM runs at most this many at once; match the client
             env=env, stdout=open(log, "a"), stderr=subprocess.STDOUT)
-        try:
-            print(f"starting vLLM ({cfg['model']}); the first run downloads it, which can take several minutes", flush=True)
-            for _ in range(180):                                   # up to 30 min
-                if server.poll() is not None:
-                    raise RuntimeError(f"vLLM exited, see {log}")
-                try:
-                    urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=5)
-                    break
-                except OSError:
-                    time.sleep(10)
-            else:
-                raise RuntimeError(f"vLLM did not start within 30 min, see {log}")
-            print("vLLM ready", flush=True)
-            subprocess.run([sys.executable, str(ROOT / "scripts/experiments/profile_signal.py"), *run_args(cfg),
-                            "--job", str(job), "--num-jobs", str(n_jobs)], cwd=ROOT, env=env, check=True)
-        finally:
-            server.terminate()
+        print(f"starting vLLM ({cfg['model']}); the first run downloads it, which can take several minutes", flush=True)
+        for _ in range(180):                                       # up to 30 min
+            if server.poll() is not None:
+                raise RuntimeError(f"vLLM exited, see {log}")
+            try:
+                urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=5)
+                print("vLLM ready", flush=True)
+                return env, port, server
+            except OSError:
+                time.sleep(10)
+        server.terminate()
+        raise RuntimeError(f"vLLM did not start within 30 min, see {log}")
 
 
 def free_port():
@@ -111,6 +128,11 @@ def main():
     print(f"{n_comments} comments -> {n_jobs} jobs, one {cfg['partition']} node each, up to {cfg['time']} per job "
           f"(requeued automatically if it runs out)")
     print("each job runs: profile_signal.py " + " ".join(run_args(cfg)) + " --job <i> --num-jobs " + str(n_jobs))
+    if cfg.get("steering"):
+        settings = steering_settings(cfg["steering"])
+        print(f"steering: {len(settings)} settings per job, one vLLM server each: "
+              + ", ".join(tag or "unsteered" for tag, _, _ in settings))
+        print(f"layer figure: {save_run_figure(cfg['model'], cfg['steering'], cfg['data']).relative_to(ROOT)}")
     merge = (f"uv run python scripts/experiments/profile_signal.py --merge --sample {cfg['sample']} "
              f"--data {cfg['data']} --checkpoint-every {cfg['checkpoint_every']}")
     if args.dry_run:
