@@ -1,12 +1,15 @@
 """vLLM plugin: PCA activation steering (the vLLM version of ethos.steering.activation.steer) and hidden-state capture.
 
-Install it into vLLM's environment, e.g. `uvx --with plugins/vllm_steer --from vllm==0.33.0 vllm serve ...`; vLLM then
+Install it into vLLM's environment, e.g. `uvx --with-editable plugins/vllm_steer --from vllm==0.33.0 vllm serve ...` (editable, so
+changes to this file are picked up; a plain --with install is cached); vLLM then
 loads it in every process (entry point vllm.general_plugins). It patches the decoder layers of Qwen3 and gpt-oss and
 does nothing unless asked:
 
 Steering  ETHOS_STEER=<value.npz> (keys layer_<l>, written by ethos.steering.activation.save_directions) and ETHOS_STEER_ALPHA=<α>:
           after each decoder layer l in the file, α × direction_l is added to the residual stream at every position.
           ETHOS_STEER_LAYERS="11,12,13" (optional) steers only those of the file's layers.
+Swapping  ETHOS_STEER_LAYERS without ETHOS_STEER gives those layers a zero steering vector, which a running server
+          replaces through WorkerExtension.ethos_steer (no restart per steering setting; see the class).
           vLLM layers return (output, residual) and add the two at the start of the next layer (fused add + norm), so
           the stream after layer l is output + residual, and adding to `residual` equals ethos.steering.activation.steer's hook
           on the HF layer output. set_steering (through LLM.collective_rpc) replaces the vectors in place.
@@ -33,13 +36,17 @@ def _patch(cls):
         self.ethos_layer = int(prefix.rsplit(".", 1)[-1])          # "model.layers.12" -> 12
         _LAYERS.append(self)
         path, only = os.environ.get("ETHOS_STEER"), os.environ.get("ETHOS_STEER_LAYERS")
-        if path and (not only or self.ethos_layer in {int(l) for l in only.split(",")}):
+        steered = not only or self.ethos_layer in {int(l) for l in only.split(",")}
+        if path and steered:
             with np.load(path) as f:
                 key = f"layer_{self.ethos_layer}"
                 if key in f.files:                                   # created on the model's device and dtype
                     vector = float(os.environ.get("ETHOS_STEER_ALPHA", "1")) * f[key]
                     self.register_buffer("ethos_steer", torch.tensor(vector, dtype=torch.get_default_dtype()),
                                          persistent=False)
+        elif only and steered:                                       # swappable: zeros until WorkerExtension.ethos_steer
+            size = self.input_layernorm.weight.shape[0]              # hidden size
+            self.register_buffer("ethos_steer", torch.zeros(size, dtype=torch.get_default_dtype()), persistent=False)
 
     def patched_forward(self, *args, **kwargs):
         out, residual = forward(self, *args, **kwargs)
@@ -84,6 +91,34 @@ def capture_stop(worker):
     global _CAPTURE
     captured, _CAPTURE = _CAPTURE, None
     return captured
+
+
+class WorkerExtension:
+    """Added to vLLM's GPU worker with `vllm serve ... --worker-extension-cls ethos_vllm_steer.WorkerExtension`, so a
+    running server can switch steering through its dev endpoint (VLLM_SERVER_DEV_MODE=1):
+      POST /collective_rpc {"method": "ethos_steer", "args": ["<value.npz>", "<alpha>"]}   ("", "0" = unsteered)"""
+
+    def ethos_steer(self, path, alpha):
+        """Set every steering buffer to alpha x the file's direction for its layer (zeros if path is empty or alpha
+        is 0). In place, so compiled graphs and CUDA graphs keep reading the same memory. Returns the layers set."""
+        layers = {m.ethos_layer: m for m in _LAYERS if hasattr(m, "ethos_steer")}
+        assert layers, "no steering buffers: start the server with ETHOS_STEER_LAYERS"
+        alpha = float(alpha)
+        directions = {}
+        if path and alpha:
+            with np.load(path) as f:
+                missing = [l for l in layers if f"layer_{l}" not in f.files]
+                assert not missing, f"{path} has no direction for layers {missing}"
+                directions = {l: f[f"layer_{l}"] for l in layers}
+        with torch.no_grad():
+            for l, m in layers.items():
+                if l in directions:
+                    m.ethos_steer.copy_(torch.as_tensor(alpha * directions[l]))
+                else:
+                    m.ethos_steer.zero_()
+        torch.cuda.synchronize()
+        log.warning("ethos_vllm_steer: steering set to %s, alpha %s, layers %s", path or "none", alpha, sorted(layers))
+        return sorted(layers)
 
 
 def set_steering(worker, vectors):

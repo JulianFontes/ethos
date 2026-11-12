@@ -1,11 +1,10 @@
 """Activation steering in vLLM, through plugins/vllm_steer (checked against ethos.steering.activation).
 
-Runs (a config's `steering:` section: vectors folder, values, alphas or alpha_fractions, and optionally layers; or
-`defaults: configs/<model>/steering.yaml` with the model's calibrated settings, plus what the run changes):
-  resolve_steering   the section with its defaults file merged in (submit_vllm.py calls it on loading a config)
-  steering_settings  the (condition tag, vector file, alpha) settings a run goes through, one vLLM server each
+Runs (a config's `steering:` section: vectors folder, values, alphas or alpha_fractions, and optionally layers):
+  steering_settings  the (condition tag, vector file, alpha) settings a run goes through
   steering_alphas    the strengths: `alphas`, or `alpha_fractions` x the steered layers' mean hidden-state norm
-  steering_server    environment variables and uvx arguments that start a steered `vllm serve`
+  steering_server    environment variables and arguments for one `vllm serve` that every setting of a run uses
+  select_steering    switch that running server to a setting (in place, through its /collective_rpc endpoint)
   steered_layers     the layers a run steers (its `layers:`, or all the vectors were fit on)
   save_run_figure    <data>/steering_layers.png and steering.json: which layers, vectors and strengths a run uses
 Fitting vectors (in vLLM's environment, with the plugin installed):
@@ -24,25 +23,21 @@ from ethos.steering.pairs import parse_layers
 PLUGIN = ROOT / "plugins/vllm_steer"
 
 
-def resolve_steering(steering):
-    """A config's `steering:` section with its `defaults:` file (a model's calibrated settings, e.g.
-    configs/gpt_oss_20b/steering.yaml) merged in; keys set in the run override the file's. None stays None."""
-    if not steering or "defaults" not in steering:
-        return steering
-    import yaml
-    defaults = yaml.safe_load((ROOT / steering["defaults"]).read_text()) or {}
-    return defaults | {k: v for k, v in steering.items() if k != "defaults"} | {"defaults": steering["defaults"]}
-
-
 def steering_settings(steering):
     """[(condition tag, vector file, alpha)] for a config's `steering:` section, or [(None, None, None)] without one.
-    Alpha 0 runs once, unsteered and untagged, so its conditions keep their names."""
+    Alpha 0 runs once, unsteered and untagged, so its conditions keep their names. Tags name the pole the vector
+    pushes toward (see pole_name), e.g. "toxicity@+68.6", "not_fairness@-68.6"."""
     if not steering:
         return [(None, None, None)]
     alphas = steering_alphas(steering)
     settings = [(None, None, None)] if 0 in alphas else []
-    return settings + [(f"{v}@{a:+g}", f"{steering['vectors']}/{v}.npz", a)
+    return settings + [(f"{pole_name(v, a, steering)}@{a:+g}", f"{steering['vectors']}/{v}.npz", a)
                        for v in steering["values"] for a in alphas if a != 0]
+
+def pole_name(value, alpha, steering):
+    """What a vector steers toward: the value itself for + (its VISPA "for" sentences), "not_<value>" for -.
+    VISPA's toxicity / harmfulness values mean avoiding them, so "toxicity@+68.6" steers toward non-toxic posting."""
+    return value if alpha > 0 else f"not_{value}"
 
 def steering_alphas(steering):
     """The strengths a run uses: `alphas` as given, or `alpha_fractions` x the steered layers' mean hidden-state norm
@@ -60,16 +55,27 @@ def norm_scale(steering):
     return sum(norms[str(l)] for l in layers) / len(layers)
 
 
-def steering_server(vector, alpha, layers=None):
-    """(environment variables, uvx arguments) for a `vllm serve` that adds alpha x the vector file's directions after
-    their layers (only `layers`, e.g. "11-16", if given); ({}, []) for an unsteered server."""
-    if not vector:
-        return {}, []
-    env = {"ETHOS_STEER": str(ROOT / vector), "ETHOS_STEER_ALPHA": str(alpha),
-           "VLLM_DISABLE_COMPILE_CACHE": "1"}           # never reuse a model compiled under another steering setting
-    if layers:
-        env["ETHOS_STEER_LAYERS"] = ",".join(map(str, parse_layers(str(layers))))
-    return env, ["--with", str(PLUGIN)]
+def steering_server(steering):
+    """(environment variables, uvx arguments, `vllm serve` arguments) for one server that a run's every steering
+    setting can use: its steered layers start at zero and select_steering switches them. ({}, [], []) without
+    steering. Prefix caching is off, so no answer reuses prompt states computed under another setting."""
+    if not steering:
+        return {}, [], []
+    env = {"ETHOS_STEER_LAYERS": ",".join(map(str, steered_layers(steering))),
+           "VLLM_SERVER_DEV_MODE": "1"}                     # /collective_rpc (the server listens on 127.0.0.1 only)
+    serve = ["--worker-extension-cls", "ethos_vllm_steer.WorkerExtension", "--no-enable-prefix-caching"]
+    return env, ["--with-editable", str(PLUGIN)], serve   # editable: always the current plugin source
+
+
+def select_steering(base_url, vector=None, alpha=0):
+    """Switch a running steering server (steering_server) to alpha x the vector file; no vector = unsteered.
+    base_url: the server root, e.g. http://127.0.0.1:8000. Returns the layers set."""
+    import urllib.request
+    body = json.dumps({"method": "ethos_steer", "args": [str(ROOT / vector) if vector else "", str(alpha or 0)]})
+    request = urllib.request.Request(f"{base_url}/collective_rpc", data=body.encode(),
+                                     headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(request, timeout=120) as response:
+        return json.loads(response.read())["results"][0]
 
 
 def steered_layers(steering):
@@ -132,3 +138,46 @@ def capture(llm, texts, layers):
                 f"layer {l}: expected one forward pass of {len(ids)} tokens, got {[n for n, _ in captured[l]]}"
             out[l].append(captured[l][0][1])
     return {l: np.stack(v) for l, v in out.items()}
+
+
+def serve(model, log, scratch, max_num_seqs, env=None, uvx_args=(), serve_args=()):
+    """Start `vllm serve model` (vLLM 0.33.0 in its own environment, via uvx) on 127.0.0.1 and a free port, and wait
+    until it answers. Returns (environment for clients, with VLLM_BASE_URL; port; the server process). The server's
+    output is appended to `log`. env / uvx_args / serve_args: e.g. from steering_server."""
+    import os
+    import subprocess
+    import time
+    import urllib.request
+    port = free_port()   # nodes are shared (one job per GPU slice), so a fixed port can already be taken
+    scratch = os.path.expandvars(scratch)
+    env = dict(os.environ) | {
+        "UV_CACHE_DIR": f"{scratch}/uv-cache", "HF_HOME": f"{scratch}/huggingface", "PYTHONUNBUFFERED": "1",
+        "PYTHONPATH": f"{ROOT}/src", "VLLM_BASE_URL": f"http://127.0.0.1:{port}/v1",
+        "VLLM_USE_FLASHINFER_SAMPLER": "0"} | (env or {})   # its sampler compiles CUDA code; GPU nodes have no nvcc
+    with open(log, "a") as f:
+        f.write(f"\n=== vllm serve {model} {' '.join(serve_args)} ===\n")
+    server = subprocess.Popen(
+        ["uvx", "--managed-python", "--python", "3.12", *uvx_args, "--from", "vllm==0.33.0", "vllm", "serve", model,
+         "--host", "127.0.0.1", "--port", str(port), "--max-model-len", "4096", "--gpu-memory-utilization", "0.90",
+         "--max-num-seqs", str(max_num_seqs), *serve_args],
+        env=env, stdout=open(log, "a"), stderr=subprocess.STDOUT)
+    print(f"starting vLLM ({model}); the first run downloads it, which can take several minutes", flush=True)
+    for _ in range(180):                                         # up to 30 min
+        if server.poll() is not None:
+            raise RuntimeError(f"vLLM exited, see {log}")
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=5)
+            print("vLLM ready", flush=True)
+            return env, port, server
+        except OSError:
+            time.sleep(10)
+    server.terminate()
+    raise RuntimeError(f"vLLM did not start within 30 min, see {log}")
+
+
+def free_port():
+    """A TCP port nothing on this node is listening on."""
+    import socket
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]

@@ -37,7 +37,7 @@ export UV_CACHE_DIR=\$scratch/uv-cache HF_HOME=\$scratch/huggingface HF_HUB_OFFL
 export VLLM_USE_FLASHINFER_SAMPLER=0 VLLM_ENABLE_V1_MULTIPROCESSING=0   # in-process worker: plugin RPCs need no pickling
 nvidia-smi -L
 echo "=== 1. capture states in vLLM ==="
-PYTHONPATH='$root/src' uv run --no-project --managed-python --python 3.12 --with vllm==0.33.0 --with ./plugins/vllm_steer \
+PYTHONPATH='$root/src' uv run --no-project --managed-python --python 3.12 --with vllm==0.33.0 --with-editable ./plugins/vllm_steer \
   python scripts/experiments/capture_states.py --model '$model' --pairs '$pairs' --layers '$layers' --out "\$states" $value_args
 echo "=== 2. fit directions ==="
 PYTHONPATH='$root/src' .venv/bin/python scripts/experiments/fit_steering_vectors.py --states "\$states" --out '$out'

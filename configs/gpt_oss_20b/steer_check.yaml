@@ -1,0 +1,36 @@
+# Check that the steering settings (layers 7-19, alpha +-68.6) produce noticeable
+# shifts in the TOXIC / NOT TOXIC answers before the 1000-comment run: 4 values, toward and away, no-value prompt, the 20
+# comments of the alpha sweeps. 1 + 4 x 2 = 9 settings on one vLLM server (~15 min).
+#   scripts/shell/submit_vllm.sh --config configs/gpt_oss_20b/steer_check.yaml [--dry-run]
+
+model: openai/gpt-oss-20b
+sample: data/processed/consensus_n1000_train/sample.csv
+data: data/processed/consensus_n1000_train/steer_check_gpt_oss_20b_l7-19
+ids: [5554606, 1083017, 621351, 591640, 5274283, 6279132, 5464059, 5192086, 726270, 896216,   # first 20 of order.csv
+      4975044, 5325266, 5120093, 5736820, 5166965, 5096575, 5780838, 5648853, 5624392, 5542520]   # (4 per band)
+
+# What to ask (see profile_signal.py)
+single_values: true
+conditions: [none]                         # only the no-value prompt: any change comes from the activation steering
+samples: 10                                # answers per comment and condition
+reasoning_effort: low
+workers: 64
+checkpoint_every: 100
+max_tokens: 1024                           # broken settings fail fast
+attempts: 1                                # failures are part of the check
+passes: 1
+
+# Activation steering: the run's settings (layers 7-19, alpha +-68.6), a few values
+steering:
+  vectors: data/processed/steering_vectors/gpt-oss-20b   # PCA vectors of the 31 VISPA values (fit_steering_vectors.sh)
+  layers: "7-19"
+  alphas: [0, -68.6, 68.6]                 # unsteered, away from the value, toward it
+  values: [fairness, toxicity, harmfulness, benevolence]
+
+# Cluster
+job_size: 500
+max_nodes: 1
+time: "02:00:00"
+partition: gpu_test
+account: protopapas_lab
+scratch: /n/netscratch/protopapas_lab/Lab/$USER

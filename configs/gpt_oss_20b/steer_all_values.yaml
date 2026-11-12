@@ -1,14 +1,15 @@
 # Activation steering with every VISPA value on gpt-oss-20b, 1000 comments: the no-value prompt, answered unsteered and
-# steered toward / away from each of the 31 values at the calibrated strength (configs/gpt_oss_20b/steering.yaml:
-# 3% of the hidden-state norm, |alpha| ~69, layers 11-16). 1 + 31 x 2 = 63 settings, one vLLM server each.
+# steered toward / away from each of the 31 values at the calibrated strength (alpha +-68.6,
+# layers 7-19). 1 + 31 x 2 = 63 settings, all on one vLLM server per job (steering switched in place).
 #   scripts/shell/submit_vllm.sh --config configs/gpt_oss_20b/steer_all_values.yaml [--dry-run]
 # Each of the 2 jobs (gpu_test slices) takes every 2nd comment of the band-balanced order (same order as the other
-# gpt-oss runs) and goes through all 63 settings, ~6 min each (server start + 5000 answers), ~6-7 h. A job that runs out
-# of time is requeued and skips the settings it finished (<data>/done/). Combine with the merge command the script prints.
+# gpt-oss runs) and goes through all 63 settings, ~4 min each (5000 answers), ~4-5 h. A job that runs out of time is
+# requeued and skips the settings it finished (<data>/done/). Combine with the merge command the script prints.
 
 model: openai/gpt-oss-20b                    # Hugging Face id, served by vLLM (MXFP4 MoE, ~13 GB; 3.6B active parameters)
 sample: data/processed/consensus_n1000_train/sample.csv
-data: data/processed/consensus_n1000_train/steer_all_values_gpt_oss_20b
+data: data/processed/consensus_n1000_train/steer_all_values_gpt_oss_20b_l7-19
+# (steer_all_values_gpt_oss_20b/: a stopped run that steered layers 11-16 at the same alphas, with no measurable effect)
 
 # What to ask (see profile_signal.py)
 single_values: true
@@ -21,7 +22,9 @@ max_tokens: 1024                           # per answer, reasoning included (nor
 
 # Activation steering: the calibrated settings, every value
 steering:
-  defaults: configs/gpt_oss_20b/steering.yaml   # vectors, layers 11-16, alpha_fractions [0, -0.03, 0.03]
+  vectors: data/processed/steering_vectors/gpt-oss-20b   # PCA vectors of the 31 VISPA values (fit_steering_vectors.sh)
+  layers: "7-19"
+  alphas: [0, -68.6, 68.6]                 # unsteered, away from the value, toward it
   values: [achievement, benevolence, commonsense_morality, conformity, confucianism, deontology, face, fairness,
            harmfulness, hedonism, honor, individualism, indulgence, justice, karma, long_term_orientation, masculinity,
            power, power_distance, security, self-direction, spiritual, stimulation, toxicity, tradition, truthfulness,

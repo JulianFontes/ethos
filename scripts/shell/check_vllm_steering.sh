@@ -21,7 +21,7 @@ export UV_CACHE_DIR=\$scratch/uv-cache HF_HOME=\$scratch/huggingface HF_HUB_OFFL
 export VLLM_USE_FLASHINFER_SAMPLER=0 VLLM_ENABLE_V1_MULTIPROCESSING=0   # in-process worker: plugin RPCs need no pickling
 nvidia-smi -L
 echo "=== vLLM: capture states and steer (plugin) ==="
-PYTHONPATH='$root/src' uv run --no-project --managed-python --python 3.12 --with vllm==0.33.0 --with ./plugins/vllm_steer \
+PYTHONPATH='$root/src' uv run --no-project --managed-python --python 3.12 --with vllm==0.33.0 --with-editable ./plugins/vllm_steer \
   python scripts/experiments/check_vllm_steering.py --run
 echo "=== compare with HF steering ==="
 PYTHONPATH='$root/src' .venv/bin/python scripts/experiments/check_vllm_steering.py --compare

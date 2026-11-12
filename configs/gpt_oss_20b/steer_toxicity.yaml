@@ -1,0 +1,36 @@
+# Activation steering with one value, toxicity, on gpt-oss-20b, 1000 comments: the no-value prompt answered unsteered,
+# toward toxicity (alpha +68.6: VISPA's "for" sentences, kind / non-toxic posting) and toward not_toxicity (-68.6:
+# stirring up drama), layers 7-19 (alpha and layers: see the steering section). 3 settings x 1000 comments x 10 answers.
+#   scripts/shell/submit_vllm.sh --config configs/gpt_oss_20b/steer_toxicity.yaml [--dry-run]
+
+model: openai/gpt-oss-20b                    # Hugging Face id, served by vLLM (MXFP4 MoE, ~13 GB; 3.6B active parameters)
+sample: data/processed/consensus_n1000_train/sample.csv
+data: data/processed/consensus_n1000_train/steer_toxicity_gpt_oss_20b_l7-19
+
+# What to ask (see profile_signal.py)
+single_values: true
+conditions: [none]                         # only the no-value prompt: any change comes from the activation steering
+samples: 10                                # answers per comment and condition
+reasoning_effort: low                      # gpt-oss always reasons; low is its cheapest setting
+workers: 256                               # requests in flight per node = vLLM --max-num-seqs
+checkpoint_every: 100                      # comments per checkpoint when merging
+max_tokens: 1024                           # per answer, reasoning included (normal ~220); stops rare runaway answers
+
+# Activation steering: the calibrated settings, one value
+# Layers 7-19 (VISPA's share of depth: it steers 10-25 of 32); steering only 11-16 barely moved the answers even at
+# alpha 457. Alpha +-68.6 (2.2% of the 7-19 mean hidden-state norm, ~3080): in the 2026-11-12 fairness sweep it kept
+# 100% valid answers and moved TOXIC from 85% to 72.5% / 68.5%; +-114 degraded, +-229 and up broke the model
+# (data/experiments/05_activation_steering/alpha_sweep_gpt_oss_20b/NOTE.md). Checked with steer_check.yaml.
+steering:
+  vectors: data/processed/steering_vectors/gpt-oss-20b   # PCA vectors of the 31 VISPA values (fit_steering_vectors.sh)
+  layers: "7-19"
+  values: [toxicity]
+  alphas: [0, -68.6, 68.6]                   # unsteered, away from the value, toward it
+
+# Cluster
+job_size: 500                              # comments per job (= per node). Keep the job count (2) when resuming
+max_nodes: 2
+time: "12:00:00"                           # gpu_test maximum; requeued and resumed if it runs out
+partition: gpu_test                        # 20 GB A100 MIG slice (QOS: max 2 jobs per user, 12 h)
+account: protopapas_lab
+scratch: /n/netscratch/protopapas_lab/Lab/$USER   # vLLM and model downloads are cached here

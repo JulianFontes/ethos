@@ -6,8 +6,9 @@
 
 model: openai/gpt-oss-20b                    # Hugging Face id, served by vLLM (MXFP4 MoE, ~13 GB; 3.6B active parameters)
 sample: data/processed/consensus_n1000_train/sample.csv
-data: data/processed/consensus_n1000_train/steering_alpha_sweep_gpt_oss_20b_fine
-# Earlier: _v2 (fractions +-0.5 / 0.25 / 0.1 / 0.05) broke at -0.1 and stronger (<= 4% valid answers; results in
+data: data/processed/consensus_n1000_train/steering_alpha_sweep_gpt_oss_20b_l11-16
+# Earlier sweeps (_v2, _fine) ran a stale plugin that steered layers 7-19, not 11-16 (see the NOTE.md in
+# data/experiments/05_activation_steering/alpha_sweep_gpt_oss_20b/). _v2 (fractions +-0.5 / 0.25 / 0.1 / 0.05) broke at -0.1 and stronger (<= 4% valid answers; results in
 # data/experiments/05_activation_steering/alpha_sweep_gpt_oss_20b/coarse/); v1 (no token limits) stalled at -0.5.
 ids: [5554606, 1083017, 621351, 591640, 5274283, 6279132, 5464059, 5192086, 726270, 896216,   # first 20 of order.csv
       4975044, 5325266, 5120093, 5736820, 5166965, 5096575, 5780838, 5648853, 5624392, 5542520]   # (4 per band)
@@ -27,9 +28,11 @@ passes: 1                                  # no second pass over failed calls
 
 # Activation steering (plugins/vllm_steer; vectors from scripts/shell/fit_steering_vectors.sh)
 steering:
-  defaults: configs/gpt_oss_20b/steering.yaml   # vectors and layers (11-16); the sweep overrides the strengths
+  vectors: data/processed/steering_vectors/gpt-oss-20b   # PCA vectors of the 31 VISPA values (fit_steering_vectors.sh)
+  layers: "11-16"
   values: [fairness]
-  alpha_fractions: [0, -0.05, -0.03, -0.02, -0.01, 0.01, 0.02, 0.03, 0.05]   # x mean norm (~2290); 0 = unsteered
+  alpha_fractions: [0, -0.2, -0.1, -0.05, -0.03, 0.03, 0.05, 0.1, 0.2]   # x mean norm (~2290); 0 = unsteered
+  # (wider than the stale-plugin sweep, which steered 13 layers and broke at 10%; 6 layers likely tolerate more)
 
 # Cluster
 job_size: 500                              # comments per job (= per node): one job runs all 9 settings

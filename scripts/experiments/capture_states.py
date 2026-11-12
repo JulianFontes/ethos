@@ -9,7 +9,7 @@ Writes <out>/<value>_states.npz with pos_<layer> / neg_<layer> arrays of shape (
 
 Usage (scripts/shell/fit_steering_vectors.sh runs both steps on a GPU):
     VLLM_ENABLE_V1_MULTIPROCESSING=0 PYTHONPATH=src uv run --no-project --python 3.12 --with vllm==0.33.0 \
-        --with ./plugins/vllm_steer python scripts/experiments/capture_states.py \
+        --with-editable ./plugins/vllm_steer python scripts/experiments/capture_states.py \
         --model openai/gpt-oss-20b --pairs <dir with *_context_controlled.csv> --layers 7-19 --out <dir>
 """
 import argparse

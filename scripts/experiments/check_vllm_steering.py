@@ -4,7 +4,8 @@ Reference: data/experiments/05_activation_steering/vispa_equivalence/ours_tf4.57
 fairness / justice / tradition; directions and steered top-5 logits for 3 prompts at alpha 1 and 4).
 
   --run      (vLLM's environment, with the plugin) capture the pair sentences' states in vLLM, and steer the 3 prompts
-             with the reference directions; writes <out>/vllm/
+             with the reference directions, the way runs do: zero steering on the layers at startup
+             (ETHOS_STEER_LAYERS), switched with WorkerExtension.ethos_steer; writes <out>/vllm/
   --compare  (ethos environment) fit directions from the vLLM states and compare with the reference: cosine per layer,
              steered top token, and gaps between the top-5 logits (vLLM logprob gaps = logit gaps). Exits 1 on FAIL.
 
@@ -36,14 +37,13 @@ def run(out, model):
 
     out.mkdir(parents=True, exist_ok=True)
     ref = np.load(sorted(REF.glob("ours_tf4*.npz"))[-1])
-    directions = {v: {l: ref[f"{v}/{l}"] for l in LAYERS} for v in VALUES}
-    init = out / "init.npz"                                        # gives layers 10-25 a steering buffer, at alpha 0
-    np.savez(init, **{f"layer_{l}": d for l, d in directions[VALUES[0]].items()})
-    os.environ.update(ETHOS_STEER=str(init), ETHOS_STEER_ALPHA="0")
-    llm = make_llm(model, dtype="float16")
+    for value in VALUES:                                           # the reference directions as plugin vector files
+        np.savez(out / f"{value}.npz", **{f"layer_{l}": ref[f"{value}/{l}"] for l in LAYERS})
+    # the runs' code path: zero steering on layers 10-25 at startup, then WorkerExtension.ethos_steer switches it
+    os.environ["ETHOS_STEER_LAYERS"] = ",".join(map(str, LAYERS))
+    llm = make_llm(model, dtype="float16", worker_extension_cls="ethos_vllm_steer.WorkerExtension")
 
-    import ethos_vllm_steer as plugin
-    for value in VALUES:                                           # unsteered states (alpha 0)
+    for value in VALUES:                                           # unsteered states (zero steering)
         pos, neg = load_pairs(REF / "pairs" / f"{value}_context_controlled.csv")
         states = {f"pos_{l}": s for l, s in capture(llm, pos, LAYERS).items()}
         states |= {f"neg_{l}": s for l, s in capture(llm, neg, LAYERS).items()}
@@ -54,7 +54,7 @@ def run(out, model):
     params = SamplingParams(max_tokens=1, temperature=0, logprobs=20)
     for value in VALUES:
         for alpha in ALPHAS:
-            llm.collective_rpc(plugin.set_steering, args=({l: alpha * d for l, d in directions[value].items()},))
+            llm.collective_rpc("ethos_steer", args=(str((out / f"{value}.npz").resolve()), str(alpha)))
             for i, prompt in enumerate(PROMPTS):
                 result = llm.generate([TokensPrompt(prompt_token_ids=tokenizer(prompt).input_ids)], params,
                                       use_tqdm=False)[0]
