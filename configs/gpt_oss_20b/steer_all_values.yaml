@@ -1,0 +1,36 @@
+# Activation steering with every VISPA value on gpt-oss-20b, 1000 comments: the no-value prompt, answered unsteered and
+# steered toward / away from each of the 31 values at the calibrated strength (configs/gpt_oss_20b/steering.yaml:
+# 3% of the hidden-state norm, |alpha| ~69, layers 11-16). 1 + 31 x 2 = 63 settings, one vLLM server each.
+#   scripts/shell/submit_vllm.sh --config configs/gpt_oss_20b/steer_all_values.yaml [--dry-run]
+# Each of the 2 jobs (gpu_test slices) takes every 2nd comment of the band-balanced order (same order as the other
+# gpt-oss runs) and goes through all 63 settings, ~6 min each (server start + 5000 answers), ~6-7 h. A job that runs out
+# of time is requeued and skips the settings it finished (<data>/done/). Combine with the merge command the script prints.
+
+model: openai/gpt-oss-20b                    # Hugging Face id, served by vLLM (MXFP4 MoE, ~13 GB; 3.6B active parameters)
+sample: data/processed/consensus_n1000_train/sample.csv
+data: data/processed/consensus_n1000_train/steer_all_values_gpt_oss_20b
+
+# What to ask (see profile_signal.py)
+single_values: true
+conditions: [none]                         # only the no-value prompt: any change comes from the activation steering
+samples: 10                                # answers per comment and condition
+reasoning_effort: low                      # gpt-oss always reasons; low is its cheapest setting
+workers: 256                               # requests in flight per node = vLLM --max-num-seqs
+checkpoint_every: 100                      # comments per checkpoint when merging
+max_tokens: 1024                           # per answer, reasoning included (normal ~220); stops rare runaway answers
+
+# Activation steering: the calibrated settings, every value
+steering:
+  defaults: configs/gpt_oss_20b/steering.yaml   # vectors, layers 11-16, alpha_fractions [0, -0.03, 0.03]
+  values: [achievement, benevolence, commonsense_morality, conformity, confucianism, deontology, face, fairness,
+           harmfulness, hedonism, honor, individualism, indulgence, justice, karma, long_term_orientation, masculinity,
+           power, power_distance, security, self-direction, spiritual, stimulation, toxicity, tradition, truthfulness,
+           ubuntu, uncertainty_avoidance, universalism, utilitarianism, virtue_ethics]
+
+# Cluster
+job_size: 500                              # comments per job (= per node). Keep the job count (2) when resuming
+max_nodes: 2
+time: "12:00:00"                           # gpu_test maximum; requeued and resumed if it runs out
+partition: gpu_test                        # 20 GB A100 MIG slice (QOS: max 2 jobs per user, 12 h)
+account: protopapas_lab
+scratch: /n/netscratch/protopapas_lab/Lab/$USER   # vLLM and model downloads are cached here
