@@ -4,7 +4,7 @@
 # every Nth comment of a fixed, band-balanced order. A job that runs out of time is requeued and resumes.
 # Combine the jobs any time with the merge command the script prints.
 
-model: Qwen/Qwen3-8B                       # Hugging Face id, served by vLLM
+model: Qwen/Qwen3-8B-FP8                   # Hugging Face id, served by vLLM (FP8 weights, ~9 GB; bf16 Qwen/Qwen3-8B is ~16 GB)
 sample: data/processed/consensus_n1000_train/sample.csv
 data: data/processed/consensus_n1000_train/vllm_smoke_test   # throwaway: delete after checking
 ids: [240450, 1020342]                     # 2 comments x 61 conditions x 5 answers = 610 answers
@@ -13,13 +13,13 @@ ids: [240450, 1020342]                     # 2 comments x 61 conditions x 5 answ
 single_values: true                        # each of the 60 taxonomy values alone (false: the profiles in prompts/profiles)
 samples: 5                                 # answers per comment and condition
 reasoning_effort: none                     # none = thinking off (Qwen3); low / medium / high for gpt-oss
-workers: 64                                # requests in flight per node (vLLM batches them)
+workers: 128                               # requests in flight per node = vLLM --max-num-seqs (gpu_test: ~128; FP8 measured ~64 KV tokens/request, 50k available; gains level off past ~256)
 checkpoint_every: 100                      # comments per checkpoint when merging
 
 # Cluster
 job_size: 500                              # comments per job (= per node)
 max_nodes: 4                               # never more jobs than this; bigger jobs instead
 time: "01:00:00"                           # per job
-partition: gpu                             # full A100s (gpu_test only gives a 20 GB slice)
+partition: gpu_test                        # 20 GB A100 MIG slice; FP8 weights leave ~8 GB for KV cache
 account: protopapas_lab
-scratch: /n/netscratch/protopapas_lab/$USER   # vLLM and model downloads (several GB + ~16 GB) are cached here
+scratch: /n/netscratch/protopapas_lab/Lab/$USER   # vLLM and model downloads (several GB + ~16 GB) are cached here

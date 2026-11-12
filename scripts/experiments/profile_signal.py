@@ -30,7 +30,7 @@ Usage:
     python scripts/experiments/profile_signal.py --all --single-values \
         --data data/processed/consensus_n125_train/single_values --results data/experiments/03_single_values
     python scripts/experiments/profile_signal.py --ids 5705144 --data /tmp/one_comment          # smoke test, no results
-    python scripts/experiments/profile_signal.py --all --single-values --model vllm:Qwen/Qwen3-8B --num-jobs 2 --job 0 \
+    python scripts/experiments/profile_signal.py --all --single-values --model vllm:Qwen/Qwen3-8B-FP8 --num-jobs 2 --job 0 \
         --sample data/processed/consensus_n1000_train/sample.csv --data data/processed/consensus_n1000_train/single_values_qwen3_8b
     python scripts/experiments/profile_signal.py --merge --sample data/processed/consensus_n1000_train/sample.csv \
         --data data/processed/consensus_n1000_train/single_values_qwen3_8b
@@ -40,6 +40,7 @@ Usage:
 import argparse
 import os
 import time
+from collections import Counter
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 
@@ -94,15 +95,22 @@ def comment_order(sample, ids, seed=0):
 
 # --- collecting answers ----------------------------------------------------------------------------------------
 
-def collect(path, conds, texts, samples, model, workers, reasoning_effort="none", flush_every=500):
+def collect(path, conds, texts, samples, model, workers, reasoning_effort="none", flush_every=500, attempts=3):
     """Ask the model for every (comment, condition, answer number) not yet in `path`, appending the answers in batches
-    of `flush_every`. Failed calls are skipped and retried on the next run. Prints the speed (answers per second)."""
+    of `flush_every`. Each call is tried up to `attempts` times (1 s, 2 s, ... apart); calls that still fail are skipped
+    and retried on the next pass or run. Prints the speed (answers per second) and why calls failed."""
     done = set()
     if path.exists():
         r = pd.read_csv(path)
         done = set(zip(r.id, r.condition, r.rating))
     jobs = [(cid, c, i) for cid in texts.index for c in conds for i in range(samples) if (cid, c, i) not in done]
-    print(f"{len(conds)} conditions x {len(texts)} comments x {samples} answers: {len(jobs)} to do")
+    # Finish comments that already have answers (gaps left by failed calls or a stopped job) before starting new ones,
+    # so they become complete, and count for --merge and its checkpoints, as soon as possible. Otherwise keep the order.
+    started = {cid for cid, _, _ in done}
+    jobs.sort(key=lambda j: j[0] not in started)     # stable: comment order is kept within each group
+    gaps = sum(j[0] in started for j in jobs)
+    print(f"{len(conds)} conditions x {len(texts)} comments x {samples} answers: {len(jobs)} to do"
+          + (f" ({gaps} first, to finish {len({j[0] for j in jobs[:gaps]})} started comments)" if gaps else ""))
 
     llm, client, name = connect(model)
     base, dmp = BASE_PROMPT.read_text().strip(), DMP_PROMPT.read_text().strip()
@@ -110,11 +118,15 @@ def collect(path, conds, texts, samples, model, workers, reasoning_effort="none"
     def ask(job):
         cid, c, _ = job
         system = dmp.replace("{profile}", conds[c]) if conds[c] else base
-        try:
-            return job, llm.chat_json(client, name, system, f"Comment:\n{texts[cid]}", SCHEMA, temperature=1.0,
-                                      reasoning_effort=reasoning_effort)
-        except Exception as e:
-            return job, e
+        for attempt in range(attempts):
+            try:
+                return job, llm.chat_json(client, name, system, f"Comment:\n{texts[cid]}", SCHEMA, temperature=1.0,
+                                          reasoning_effort=reasoning_effort)
+            except Exception as e:
+                error = e
+                if attempt + 1 < attempts:
+                    time.sleep(attempt + 1)
+        return job, error
 
     def flush(rows):
         if rows:
@@ -124,7 +136,9 @@ def collect(path, conds, texts, samples, model, workers, reasoning_effort="none"
     # Keep about 4 x workers requests in flight and send the next in order as each finishes: the server stays busy and
     # answers complete roughly in comment order (so checkpoints fill up one after another).
     rows, failed, start, todo = [], 0, time.perf_counter(), iter(jobs)
+    reasons = Counter()                              # why calls failed (after all attempts), e.g. JSONDecodeError
     with ThreadPoolExecutor(workers) as pool, tqdm(total=len(jobs), unit="answer") as bar:
+        bar.set_postfix(failed=0)                    # calls that failed all attempts (asked again on the next pass)
         pending = {pool.submit(ask, j) for j in [j for _, j in zip(range(4 * workers), todo)]}
         while pending:
             finished, pending = wait(pending, return_when=FIRST_COMPLETED)
@@ -135,6 +149,8 @@ def collect(path, conds, texts, samples, model, workers, reasoning_effort="none"
                     pending.add(pool.submit(ask, job))
                 if isinstance(answer, Exception):
                     failed += 1
+                    reasons[f"{type(answer).__name__}: {str(answer)[:120]}"] += 1
+                    bar.set_postfix(failed=failed, refresh=False)
                     continue
                 rows.append({"id": cid, "condition": c, "rating": i, "profile": conds[c],
                              "toxic": answer["evaluation"] == "TOXIC", "rationale": answer["rationale"]})
@@ -144,7 +160,9 @@ def collect(path, conds, texts, samples, model, workers, reasoning_effort="none"
     seconds = time.perf_counter() - start
     if jobs:
         print(f"{len(jobs) - failed:,} answers in {seconds:.0f} s = {(len(jobs) - failed) / seconds:.1f} answers/s "
-              f"({model}, {workers} workers){f'; {failed} failed' if failed else ''}")
+              f"({model}, {workers} workers){f'; {failed} failed after {attempts} attempts each' if failed else ''}")
+    for reason, n in reasons.most_common(5):
+        print(f"  {n} x {reason}")
     return failed
 
 
@@ -205,7 +223,7 @@ def main():
                    help="where the answers go, e.g. data/processed/consensus_n125_train/single_values")
     p.add_argument("--results", type=Path, help="experiment folder for summary.csv, e.g. data/experiments/03_single_values")
     p.add_argument("--model", default="gpt-6-luna",
-                   help="gpt-* (OpenAI API), vllm:<hf id> (vLLM server, e.g. vllm:Qwen/Qwen3-8B) or an Ollama model")
+                   help="gpt-* (OpenAI API), vllm:<hf id> (vLLM server, e.g. vllm:Qwen/Qwen3-8B-FP8) or an Ollama model")
     p.add_argument("--sample", type=Path, default=TRAIN_SAMPLE / "sample.csv", help="sample.csv with the comments")
     p.add_argument("--n-comments", type=int, default=20, help="the most uncertain comments (default)")
     p.add_argument("--all", action="store_true", help="every comment in --sample")

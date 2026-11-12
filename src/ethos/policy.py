@@ -67,12 +67,13 @@ def picked_distance(rows, picks):
     return keyed.loc[list(picks.items())].mean()
 
 
-def run_tree_cv(rows, X, depths, splits, progress=None):
+def run_tree_cv(rows, X, depths, splits, progress=None, on_round=None):
     """Fit a DecisionTreeRegressor (predicting distance) for every round in `splits` and every depth.
 
     Returns one record per round and depth: train/val MSE of the predicted distance, the policy's real distance on
     train and val comments, the share of val comments with tied predictions, and the tree's leaf count.
     `progress` (a tqdm bar) is advanced once per round and shows the running mean validation distance per depth.
+    `on_round(results so far)` is called after each round, e.g. to save partial results while the run goes on.
     """
     from sklearn.tree import DecisionTreeRegressor
 
@@ -93,4 +94,6 @@ def run_tree_cv(rows, X, depths, splits, progress=None):
             done = pd.DataFrame(records).groupby("depth").val_policy.mean()
             progress.set_postfix(best=f"depth {done.idxmin()}: {done.min():.3f}")
             progress.update(1)
+        if on_round is not None:
+            on_round(pd.DataFrame(records))
     return pd.DataFrame(records)

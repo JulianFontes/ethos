@@ -112,33 +112,37 @@ def load_embeddings(sample_dir=None):
 
 N_VALUES, N_ANSWERS = 60, 10
 
-def load_scores(path):
+def load_scores(path, include_none=False):
     """Read a single-value scores.csv (e.g. data/processed/consensus_n125_train/single_values/scores.csv, or a checkpoint
     of a larger run) and return (rows, base):
 
-    rows  one row per (comment, value), 60 per comment: id, moral_value, llm_toxicity, human_toxicity, consensus_bin,
-          and the target distance = |llm_toxicity - human_toxicity|
-    base  the same columns for the no-value rows (moral_value "none"), one per comment; used only as a baseline
+    rows  one row per (comment, option): id, moral_value, llm_toxicity, human_toxicity, consensus_bin, and the target
+          distance = |llm_toxicity - human_toxicity|. The options are the 60 values, plus "none" (no value in the
+          prompt) as a 61st when `include_none`, so a policy can also choose to leave the prompt as it is.
+    base  the same columns for the no-value rows (moral_value "none"), one per comment; the no-value baseline
     """
     scores = pd.read_csv(ROOT / path)
     cols = ["id", "moral_value", "llm_toxicity", "human_toxicity", "consensus_bin"]
     scores = scores[cols].assign(distance=lambda d: (d.llm_toxicity - d.human_toxicity).abs())
     base = scores[scores.moral_value == "none"].set_index("id")
-    rows = scores[scores.moral_value != "none"].sort_values(["id", "moral_value"], ignore_index=True)
+    rows = scores if include_none else scores[scores.moral_value != "none"]
+    rows = rows.sort_values(["id", "moral_value"], ignore_index=True)
 
     # fail loudly if the table is not what the policy expects
+    n_options = N_VALUES + include_none
     n_comments = rows.id.nunique()
     per_comment = rows.groupby("id").moral_value.nunique()
-    assert (per_comment == N_VALUES).all(), f"expected {N_VALUES} values per comment, got {per_comment.unique()}"
+    assert (per_comment == n_options).all(), f"expected {n_options} options per comment, got {per_comment.unique()}"
     assert set(base.index) == set(rows.id), "every comment needs a no-value ('none') row"
     assert not rows.isna().any().any() and not base.isna().any().any(), "missing values in scores.csv"
-    assert len(rows) == n_comments * N_VALUES
+    assert len(rows) == n_comments * n_options
     return rows, base
 
 
 def feature_matrix(rows, embeddings):
     """Model inputs, one row per row of `rows`: the comment's embedding (emb_0 ... emb_767) followed by one column per
-    moral value (1 for the row's value, 0 otherwise). No scores: the human score and the LLM's answers stay out."""
+    option (1 for the row's value, 0 otherwise; value_none when "none" is an option). No scores: the human score and
+    the LLM's answers stay out."""
     missing = set(rows.id) - set(embeddings.index)
     assert not missing, f"{len(missing)} comments have no embedding"
     emb = embeddings.loc[rows.id].to_numpy()

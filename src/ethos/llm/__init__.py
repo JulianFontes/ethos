@@ -1,6 +1,6 @@
 """LLM backends. connect(model) picks one from the model name:
 
-  vllm:<hf model id>   a vLLM server, e.g. vllm:Qwen/Qwen3-8B (VLLM_BASE_URL, default http://localhost:8000/v1)
+  vllm:<hf model id>   a vLLM server, e.g. vllm:Qwen/Qwen3-8B-FP8 (VLLM_BASE_URL, default http://localhost:8000/v1)
   <name>:<tag>         local Ollama, e.g. qwen3:8b, gpt-oss:20b (Ollama names always carry a tag)
   gpt-...              OpenAI API (needs OPENAI_API_KEY), e.g. gpt-6-luna
 """

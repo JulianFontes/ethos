@@ -10,11 +10,13 @@ A job that hits its time limit is requeued automatically and resumes from the an
 Run from a cluster login node (scripts/shell/submit_vllm.sh does the setup):
     scripts/shell/submit_vllm.sh --config configs/vllm_run.yaml --dry-run     # show the plan
     scripts/shell/submit_vllm.sh --config configs/vllm_run.yaml
-Logs: logs/submitit/<job id>/ (job output) and logs/submitit/vllm-<job id>.log (the server).
+Logs go next to the answers, in <data>/logs/: <array id>_<task>/ (job output) and vllm-<array id>_<task>.log (the server;
+appended to when a job is requeued).
 """
 import argparse
 import math
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -37,21 +39,26 @@ class Job(submitit.helpers.Checkpointable):
 
     def __call__(self, job, n_jobs):
         cfg, env = self.cfg, dict(os.environ)
+        port = free_port()   # nodes are shared (one job per GPU slice), so a fixed port can already be taken
         scratch = os.path.expandvars(cfg["scratch"])
         env.update(UV_CACHE_DIR=f"{scratch}/uv-cache", HF_HOME=f"{scratch}/huggingface", PYTHONUNBUFFERED="1",
-                   PYTHONPATH=f"{ROOT}/src", VLLM_BASE_URL="http://127.0.0.1:8000/v1")
-        log = ROOT / "logs" / "submitit" / f"vllm-{os.environ.get('SLURM_JOB_ID', 'local')}.log"
+                   PYTHONPATH=f"{ROOT}/src", VLLM_BASE_URL=f"http://127.0.0.1:{port}/v1",
+                   VLLM_USE_FLASHINFER_SAMPLER="0")   # its sampler compiles CUDA code, but nvcc is not on the GPU nodes
+        task = (f"{os.environ['SLURM_ARRAY_JOB_ID']}_{os.environ['SLURM_ARRAY_TASK_ID']}" if "SLURM_ARRAY_JOB_ID" in os.environ
+                else os.environ.get("SLURM_JOB_ID", "local"))   # same name as the job's submitit folder
+        log = log_dir(cfg) / f"vllm-{task}.log"
         server = subprocess.Popen(
-            ["uvx", "--python", "3.12", "--from", "vllm", "vllm", "serve", cfg["model"], "--port", "8000",
-             "--max-model-len", "4096", "--gpu-memory-utilization", "0.90"],
-            env=env, stdout=open(log, "w"), stderr=subprocess.STDOUT)
+            ["uvx", "--managed-python", "--python", "3.12", "--from", "vllm==0.33.0", "vllm", "serve", cfg["model"], "--port", str(port),
+             "--max-model-len", "4096", "--gpu-memory-utilization", "0.90",
+             "--max-num-seqs", str(cfg["workers"])],   # vLLM runs at most this many at once; match the client
+            env=env, stdout=open(log, "a"), stderr=subprocess.STDOUT)
         try:
             print(f"starting vLLM ({cfg['model']}); the first run downloads it, which can take several minutes", flush=True)
             for _ in range(180):                                   # up to 30 min
                 if server.poll() is not None:
                     raise RuntimeError(f"vLLM exited, see {log}")
                 try:
-                    urllib.request.urlopen("http://127.0.0.1:8000/health", timeout=5)
+                    urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=5)
                     break
                 except OSError:
                     time.sleep(10)
@@ -62,6 +69,18 @@ class Job(submitit.helpers.Checkpointable):
                             "--job", str(job), "--num-jobs", str(n_jobs)], cwd=ROOT, env=env, check=True)
         finally:
             server.terminate()
+
+
+def free_port():
+    """A TCP port nothing on this node is listening on."""
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def log_dir(cfg):
+    """Job and vLLM logs live with the run's answers: <data>/logs/."""
+    return ROOT / cfg["data"] / "logs"
 
 
 def run_args(cfg):
@@ -95,13 +114,13 @@ def main():
         print(f"\n(dry run: nothing submitted)\nCombine the jobs any time with:\n  {merge}")
         return
 
-    (ROOT / "logs" / "submitit").mkdir(parents=True, exist_ok=True)
-    executor = submitit.AutoExecutor(folder=ROOT / "logs" / "submitit" / "%j")
+    log_dir(cfg).mkdir(parents=True, exist_ok=True)
+    executor = submitit.AutoExecutor(folder=log_dir(cfg) / "%j")
     executor.update_parameters(name="ethos-vllm", slurm_partition=cfg["partition"], slurm_account=cfg["account"],
                                gpus_per_node=1, cpus_per_task=8, mem_gb=64, timeout_min=60 * hours + minutes,
                                slurm_array_parallelism=n_jobs)
     jobs = executor.map_array(Job(cfg), range(n_jobs), [n_jobs] * n_jobs)
-    print(f"\nsubmitted array {jobs[0].job_id.split('_')[0]} ({n_jobs} jobs); logs in logs/submitit/")
+    print(f"\nsubmitted array {jobs[0].job_id.split('_')[0]} ({n_jobs} jobs); logs in {log_dir(cfg).relative_to(ROOT)}/")
     print(f"Combine the jobs any time (also while running) with:\n  {merge}")
 
 

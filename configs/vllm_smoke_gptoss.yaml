@@ -1,0 +1,25 @@
+# Smoke test for gpt-oss-20b: checks that vLLM starts on a gpu_test slice, answers come back, and measures the speed.
+#   scripts/shell/submit_vllm.sh --config configs/vllm_smoke_gptoss.yaml [--dry-run]
+# Each job is one Slurm array task (submitted with submitit): one A100 that starts its own vLLM server and handles
+# every Nth comment of a fixed, band-balanced order. A job that runs out of time is requeued and resumes.
+# Combine the jobs any time with the merge command the script prints.
+
+model: openai/gpt-oss-20b                    # Hugging Face id, served by vLLM (MXFP4 MoE, ~13 GB; 3.6B active parameters)
+sample: data/processed/consensus_n1000_train/sample.csv
+data: data/processed/consensus_n1000_train/vllm_smoke_test_gptoss   # throwaway: delete after checking
+ids: [240450, 1020342]                     # 2 comments x 61 conditions x 5 answers = 610 answers
+
+# What to ask (see profile_signal.py)
+single_values: true                        # each of the 60 taxonomy values alone (false: the profiles in prompts/profiles)
+samples: 5                                 # answers per comment and condition
+reasoning_effort: low                      # gpt-oss always reasons; low is its cheapest setting
+workers: 64                                # requests in flight = vLLM --max-num-seqs
+checkpoint_every: 100                      # comments per checkpoint when merging
+
+# Cluster
+job_size: 500                              # comments per job (= per node)
+max_nodes: 4                               # never more jobs than this; bigger jobs instead
+time: "01:00:00"                           # per job
+partition: gpu_test                        # 20 GB A100 MIG slice; ~13 GB of weights leaves ~4-5 GB for KV cache
+account: protopapas_lab
+scratch: /n/netscratch/protopapas_lab/Lab/$USER   # vLLM and model downloads (several GB + ~16 GB) are cached here

@@ -26,9 +26,10 @@ def get_client(model, base_url=None):
 
 
 def chat_json(client, model, system, user, schema, temperature=None, max_tokens=None, reasoning_effort=None):
-    """Like ollama_client.chat_json. vLLM has no reasoning_effort; "none" switches thinking off through the chat
-    template instead (Qwen3's enable_thinking)."""
+    """Like ollama_client.chat_json. "none" switches thinking off through the chat template (Qwen3's enable_thinking);
+    low / medium / high are passed as reasoning_effort, which vLLM honors for models like gpt-oss (that always reason)."""
     if reasoning_effort == "none":
         return ollama_client.chat_json(client, model, system, user, schema, temperature, max_tokens,
                                        extra_body={"chat_template_kwargs": {"enable_thinking": False}})
-    return ollama_client.chat_json(client, model, system, user, schema, temperature, max_tokens)
+    return ollama_client.chat_json(client, model, system, user, schema, temperature, max_tokens,
+                                   reasoning_effort=reasoning_effort)
