@@ -8,9 +8,9 @@
 
 Usage:
     python scripts/plots/plot_profiles.py \\
-        --data data/processed/consensus_n125_train/single_values --out data/experiments/03_single_values
+        --data data/processed/civil-comments/consensus_n125_train/single_values --out data/experiments/civil-comments/03_single_values
     python scripts/plots/plot_profiles.py \\
-        --data data/processed/consensus_n125_train/profiles --out data/experiments/02_profile_signal/train_125_comments
+        --data data/processed/civil-comments/consensus_n125_train/profiles --out data/experiments/civil-comments/02_profile_signal/train_125_comments
 """
 import argparse
 from pathlib import Path

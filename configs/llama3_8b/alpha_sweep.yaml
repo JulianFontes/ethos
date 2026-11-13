@@ -1,0 +1,39 @@
+# Alpha sweep (calibration) for activation steering on Meta-Llama-3-8B-Instruct: which strengths change the TOXIC /
+# NOT TOXIC answers without breaking the model. VISPA's alpha 1.0 (layers 10-25) turned the rationales into gibberish
+# (steer_toxicity_boundary.yaml), so this tries weaker ones, both directions, on the first 20 boundary comments.
+#   scripts/shell/submit_vllm.sh --config configs/llama3_8b/alpha_sweep.yaml [--dry-run]
+#   python scripts/plots/plot_steering_sweep.py --data <data> --out data/experiments/civil-comments/05_activation_steering/alpha_sweep_llama3_8b
+
+model: meta-llama/Meta-Llama-3-8B-Instruct
+sample: data/processed/civil-comments/boundary_n100_train/sample.csv
+data: data/processed/civil-comments/boundary_n100_train/alpha_sweep_toxicity_llama3_8b_l10-25
+ids: [5463788, 5459149, 542738, 5534506, 5293032, 865387, 5770554, 5391043, 5071792, 5805300,   # first 20 of order.csv
+      987228, 724813, 5189998, 962680, 5125817, 5505693, 411245, 5841001, 290371, 5588903]
+
+# What to ask (see profile_signal.py)
+single_values: true
+conditions: [none]                         # only the no-value prompt: any change comes from the activation steering
+samples: 10                                # answers per comment and condition
+reasoning_effort: none                     # Llama 3 does not reason before answering
+workers: 64                                # requests in flight = vLLM --max-num-seqs
+checkpoint_every: 100
+# Over-steered settings should fail fast: normal answers are ~50 rationale tokens; the failure rate is part of what
+# the sweep measures, so every call gets one try.
+max_tokens: 256
+attempts: 1
+passes: 1
+
+# Activation steering: VISPA's layers, weaker strengths than their 1.0
+steering:
+  vectors: data/processed/steering_vectors/Meta-Llama-3-8B-Instruct
+  layers: "10-25"
+  values: [toxicity]
+  alphas: [0, -0.7, -0.5, -0.3, -0.2, -0.1, 0.1, 0.2, 0.3, 0.5, 0.7]
+
+# Cluster
+job_size: 500
+max_nodes: 1
+time: "03:00:00"
+partition: gpu_test
+account: protopapas_lab
+scratch: /n/netscratch/protopapas_lab/Lab/$USER

@@ -1,7 +1,7 @@
 """Plot each comment's toxicity score against how many annotators selected each attribute (raw, one dot per comment).
 
 Reads <data_dir>/comments.csv (built by scripts/data/extract_splits.py) and writes to
-data/experiments/dataset/attributes/ (plus sources.yaml), for each split:
+data/experiments/civil-comments/dataset/attributes/ (plus sources.yaml), for each split:
   attributes_vs_toxicity_<split>.png              x = toxicity score
   attributes_vs_toxicity_consensus_<split>.png    the same, plus a row with x = consensus
   attributes_by_bin_<split>.png                    average per consensus bin (top) and toxicity bin
@@ -33,7 +33,7 @@ from ethos.sources import write_sources
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--data-dir", default="data/processed/comments")
+    parser.add_argument("--data-dir", default="data/processed/civil-comments/comments")
     parser.add_argument("--out", default=EXPERIMENTS / "dataset" / "attributes")
     parser.add_argument("--splits", nargs="+", default=["all"], help="train, test and/or all (both together)")
     args = parser.parse_args()

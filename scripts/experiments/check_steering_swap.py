@@ -50,7 +50,7 @@ def main():
     p.add_argument("--alpha", type=float, default=68.6)
     p.add_argument("--model", default="openai/gpt-oss-20b")
     p.add_argument("--scratch", default="/n/netscratch/protopapas_lab/Lab/$USER")
-    p.add_argument("--out", type=Path, default=Path("data/experiments/05_activation_steering/swap_check"))
+    p.add_argument("--out", type=Path, default=Path("data/experiments/civil-comments/05_activation_steering/swap_check"))
     args = p.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     log = args.out / "vllm.log"

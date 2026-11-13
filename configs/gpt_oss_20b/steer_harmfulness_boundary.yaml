@@ -4,8 +4,8 @@
 #   scripts/shell/submit_vllm.sh --config configs/gpt_oss_20b/steer_harmfulness_boundary.yaml [--dry-run]
 
 model: openai/gpt-oss-20b                    # Hugging Face id, served by vLLM (MXFP4 MoE, ~13 GB; 3.6B active parameters)
-sample: data/processed/boundary_n100_train/sample.csv   # 100 comments with human toxicity closest to 0.5
-data: data/processed/boundary_n100_train/steer_harmfulness_gpt_oss_20b_l7-19
+sample: data/processed/civil-comments/boundary_n100_train/sample.csv   # 100 comments with human toxicity closest to 0.5
+data: data/processed/civil-comments/boundary_n100_train/steer_harmfulness_gpt_oss_20b_l7-19
 
 # What to ask (see profile_signal.py)
 single_values: true
@@ -21,7 +21,7 @@ max_tokens: 1024                           # per answer, reasoning included (nor
 # Layers 7-19 (VISPA's share of depth: it steers 10-25 of 32); steering only 11-16 barely moved the answers even at
 # alpha 457. Alpha +-68.6 (2.2% of the 7-19 mean hidden-state norm, ~3080): in the 2026-11-12 fairness sweep it kept
 # 100% valid answers and moved TOXIC from 85% to 72.5% / 68.5%; +-114 degraded, +-229 and up broke the model
-# (data/experiments/05_activation_steering/alpha_sweep_gpt_oss_20b/NOTE.md). Checked with steer_check.yaml.
+# (data/experiments/civil-comments/05_activation_steering/alpha_sweep_gpt_oss_20b/NOTE.md). Checked with steer_check.yaml.
 steering:
   vectors: data/processed/steering_vectors/gpt-oss-20b   # PCA vectors of the 31 VISPA values (fit_steering_vectors.sh)
   layers: "7-19"

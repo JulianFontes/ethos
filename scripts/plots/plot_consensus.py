@@ -1,13 +1,13 @@
 """Plot annotator consensus vs toxicity score for the datasets built by scripts/data/extract_splits.py.
 
-Writes data/experiments/dataset/consensus/consensus_vs_toxicity_<split>.png and consensus_distribution_<split>.png
+Writes data/experiments/civil-comments/dataset/consensus/consensus_vs_toxicity_<split>.png and consensus_distribution_<split>.png
 for each split, plus sources.yaml.
 
 Usage:
     python scripts/plots/plot_consensus.py                      # train and test
     python scripts/plots/plot_consensus.py --splits test
     python scripts/plots/plot_consensus.py --splits all         # train and test together
-    python scripts/plots/plot_consensus.py --data-dir data/processed/comments
+    python scripts/plots/plot_consensus.py --data-dir data/processed/civil-comments/comments
 """
 import argparse
 
@@ -20,7 +20,7 @@ from ethos.sources import write_sources
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--data-dir", default="data/processed/comments")
+    parser.add_argument("--data-dir", default="data/processed/civil-comments/comments")
     parser.add_argument("--splits", nargs="+", default=["train", "test"])
     parser.add_argument("--out", default=EXPERIMENTS / "dataset" / "consensus")
     parser.add_argument("--low", type=float, default=0.6, help="consensus at or below this is shaded as low")

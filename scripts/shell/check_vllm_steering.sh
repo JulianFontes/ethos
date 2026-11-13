@@ -4,11 +4,11 @@
 # per value; the job fails on FAIL. Run after changing the plugin. See scripts/experiments/check_vllm_steering.py.
 #
 # Usage (from anywhere): scripts/shell/check_vllm_steering.sh
-# Results: data/experiments/05_activation_steering/vispa_equivalence/vllm/ (log in ../logs/)
+# Results: data/experiments/civil-comments/05_activation_steering/vispa_equivalence/vllm/ (log in ../logs/)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 root=$PWD
-out=data/experiments/05_activation_steering/vispa_equivalence
+out=data/experiments/civil-comments/05_activation_steering/vispa_equivalence
 mkdir -p "$out/logs"
 
 sbatch -p "${PARTITION:-gpu_test}" --account="${ACCOUNT:-protopapas_lab}" --gres=gpu:1 -c 8 --mem=64G -t "${TIME:-01:00:00}" \

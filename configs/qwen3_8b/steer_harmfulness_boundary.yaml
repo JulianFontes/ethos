@@ -5,8 +5,8 @@
 #   scripts/shell/submit_vllm.sh --config configs/qwen3_8b/steer_harmfulness_boundary.yaml [--dry-run]
 
 model: Qwen/Qwen3-8B-FP8                   # Hugging Face id, served by vLLM (FP8 weights, ~9 GB)
-sample: data/processed/boundary_n100_train/sample.csv   # 100 comments with human toxicity closest to 0.5
-data: data/processed/boundary_n100_train/steer_harmfulness_qwen3_8b_fp8_l11-28
+sample: data/processed/civil-comments/boundary_n100_train/sample.csv   # 100 comments with human toxicity closest to 0.5
+data: data/processed/civil-comments/boundary_n100_train/steer_harmfulness_qwen3_8b_fp8_l11-28
 
 # What to ask (see profile_signal.py)
 single_values: true
@@ -18,7 +18,7 @@ checkpoint_every: 100                      # comments per checkpoint when mergin
 
 # Activation steering. Layers 11-28 of 36: the same share of depth as gpt-oss's 7-19 of 24 (and VISPA's 10-25 of 32).
 # Alpha +-2.67 = ~2.2% of the mean hidden-state size over those layers (~120, from Qwen3-8B states), the same fraction as
-# gpt-oss's +-68.6. The capture with these settings (data/experiments/05_activation_steering/.archive/
+# gpt-oss's +-68.6. The capture with these settings (data/experiments/civil-comments/05_activation_steering/.archive/
 # steered_states_toxicity_boundary_qwen3) shifted the states strongly along the vector through the last layer.
 steering:
   vectors: data/processed/steering_vectors/Qwen3-8B-FP8   # PCA vectors of the 31 VISPA values (fit_steering_vectors.sh)

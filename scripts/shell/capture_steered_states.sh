@@ -4,7 +4,7 @@
 # folder: states and log go to <out>/hidden_states/, the plot to <out>/figures/shift_by_layer.png.
 #
 # Usage (from anywhere):
-#   scripts/shell/capture_steered_states.sh --out data/processed/boundary_n100_train/steer_toxicity_gpt_oss_20b_l7-19 [options]
+#   scripts/shell/capture_steered_states.sh --out data/processed/civil-comments/boundary_n100_train/steer_toxicity_gpt_oss_20b_l7-19 [options]
 # Options are passed on to capture_steered_states.py (e.g. --n 100 --capture 17 --layers 7-19 --alpha 68.6).
 set -euo pipefail
 cd "$(dirname "$0")/../.."

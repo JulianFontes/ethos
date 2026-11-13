@@ -2,7 +2,7 @@
 Each fitted vector set and each steered run also saves its own figure (fit_steering_vectors.py, submit_vllm.py).
 
 Usage:
-    python scripts/plots/plot_steering_layers.py --out data/experiments/05_activation_steering/steering_layers.png
+    python scripts/plots/plot_steering_layers.py --out data/experiments/civil-comments/05_activation_steering/steering_layers.png
 """
 import argparse
 from pathlib import Path
@@ -18,7 +18,7 @@ ROWS = [
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--out", type=Path, default=Path("data/experiments/05_activation_steering/steering_layers.png"))
+    p.add_argument("--out", type=Path, default=Path("data/experiments/civil-comments/05_activation_steering/steering_layers.png"))
     args = p.parse_args()
     args.out.parent.mkdir(parents=True, exist_ok=True)
     plot_steering_layers(ROWS, args.out)

@@ -18,9 +18,9 @@ judgements closer to human annotators on Civil Comments, especially on comments 
 
 | Step | Script | Config | Output (`data/`) |
 |---|---|---|---|
-| 1. Build train/test datasets | `scripts/data/extract_splits.py` | `configs/data/splits.yaml` | `processed/comments/` |
+| 1. Build train/test datasets | `scripts/data/extract_splits.py` | `configs/data/splits.yaml` | `processed/civil-comments/comments/` |
 | 2. Draw consensus-balanced samples | `scripts/data/extract_consensus_sample.py` | `configs/data/sample_consensus_{test,train}.yaml` | `processed/consensus_n125_{test,train}/` |
-| 2b. Embed comments (Sentence-BERT) | `scripts/data/embed_comments.py` | | `processed/comments/embeddings/embeddings.parquet` (samples read their rows from it) |
+| 2b. Embed comments (Sentence-BERT) | `scripts/data/embed_comments.py` | | `processed/civil-comments/comments/embeddings/embeddings.parquet` (samples read their rows from it) |
 | 3. Judge | `scripts/shell/run_judge.sh` (`scripts/judge.py`) | `configs/judges/judges.yaml` | `judgements/<sample>/judgements.csv` |
 | 4. Compare judges to humans | `scripts/plots/eval_consensus_gap.py` | | `experiments/judge_alignment/<sample>/<name>/` |
 | Dataset figures | `scripts/plots/plot_consensus.py`, `plot_attributes.py` | | `experiments/dataset/{consensus,attributes}/` |
@@ -67,9 +67,9 @@ uv run python scripts/data/extract_consensus_sample.py --config configs/data/sam
 scripts/shell/run_judge.sh                       # --only <judge>, --limit 3 for a quick test
 uv run python scripts/plots/eval_consensus_gap.py
 uv run python scripts/experiments/profile_signal.py --all --single-values \
-    --data data/processed/consensus_n125_train/single_values --results data/experiments/03_single_values
+    --data data/processed/civil-comments/consensus_n125_train/single_values --results data/experiments/civil-comments/03_single_values
 uv run python scripts/plots/plot_profiles.py \
-    --data data/processed/consensus_n125_train/single_values --out data/experiments/03_single_values
+    --data data/processed/civil-comments/consensus_n125_train/single_values --out data/experiments/civil-comments/03_single_values
 ```
 
 Re-running a judge or experiment skips answers already saved. `scripts/shell/slurm_ollama.sh` runs any command on a

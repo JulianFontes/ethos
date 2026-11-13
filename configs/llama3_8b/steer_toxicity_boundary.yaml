@@ -7,8 +7,8 @@
 #   PAIRS=data/VISPA-values scripts/shell/fit_steering_vectors.sh --model meta-llama/Meta-Llama-3-8B-Instruct --layers 10-25 --values toxicity
 
 model: meta-llama/Meta-Llama-3-8B-Instruct  # Hugging Face id, served by vLLM (bf16, ~16 GB)
-sample: data/processed/boundary_n100_train/sample.csv   # 100 comments with human toxicity closest to 0.5
-data: data/processed/boundary_n100_train/steer_toxicity_llama3_8b_l10-25
+sample: data/processed/civil-comments/boundary_n100_train/sample.csv   # 100 comments with human toxicity closest to 0.5
+data: data/processed/civil-comments/boundary_n100_train/steer_toxicity_llama3_8b_l10-25
 
 # What to ask (see profile_signal.py)
 single_values: true

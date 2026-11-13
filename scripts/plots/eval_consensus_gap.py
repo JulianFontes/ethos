@@ -1,7 +1,7 @@
 """Score gap between each judge and the human annotators, by human consensus (bootstrap plot).
 
 Reads data/judgements/<sample>/judgements.csv (original comments) and the sample's sample.csv, and writes to
-data/experiments/judge_alignment/<sample>/<name>/ (name: --name, or "main"):
+data/experiments/civil-comments/judge_alignment/<sample>/<name>/ (name: --name, or "main"):
   score_gap_by_bin.csv   mean signed and absolute gap per consensus bin and judge, with 95% bootstrap intervals
   score_gap_by_bin.png   bootstrap mean |judge - human| per consensus bin and judge, with 95% interval (line plot)
   sources.yaml           which data it came from
@@ -33,7 +33,7 @@ COLORS = {"detoxify": "#2a78d6", "gpt-6-luna-base": "#eb6834", "gpt-6-luna-dmp-r
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--sample-dir", default="data/processed/consensus_n125_test")
+    parser.add_argument("--sample-dir", default="data/processed/civil-comments/consensus_n125_test")
     parser.add_argument("--judges", nargs="+", default=["detoxify", "gpt-6-luna-base"])
     parser.add_argument("--extra", nargs="+", default=[], help="judges to add, with their own bootstrap draws")
     parser.add_argument("--name", default=None,

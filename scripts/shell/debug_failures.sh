@@ -4,7 +4,7 @@
 # Results and logs go to <data>/debug/.
 #
 # Usage (from anywhere):
-#   scripts/shell/debug_failures.sh data/processed/consensus_n1000_train/single_values_gpt_oss_20b openai/gpt-oss-20b low
+#   scripts/shell/debug_failures.sh data/processed/civil-comments/consensus_n1000_train/single_values_gpt_oss_20b openai/gpt-oss-20b low
 # Extra arguments after the first three go to debug_failures.py (e.g. --repeats 3). MAX_MODEL_LEN=8192 to try a longer
 # context than the run's 4096.
 set -euo pipefail

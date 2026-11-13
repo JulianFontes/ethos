@@ -6,7 +6,7 @@ the comments' average shift from unsteered along each layer's steering vector (l
 steered layer's), with the steered layers shaded.
 
 Usage:
-    python scripts/plots/plot_steered_states.py --data data/processed/boundary_n100_train/steer_toxicity_gpt_oss_20b_l7-19
+    python scripts/plots/plot_steered_states.py --data data/processed/civil-comments/boundary_n100_train/steer_toxicity_gpt_oss_20b_l7-19
 """
 import argparse
 import json

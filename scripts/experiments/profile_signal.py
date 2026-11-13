@@ -12,7 +12,7 @@ Conditions (each asked `--samples` times per comment, minimal prompt, plus a no-
 
 Comments: the `--n-comments` train comments whose random-DMP answers were most mixed, or `--all` of them, or `--ids`.
 
-Data (`--data`, a folder in the sample, e.g. data/processed/consensus_n125_train/single_values):
+Data (`--data`, a folder in the sample, e.g. data/processed/civil-comments/consensus_n125_train/single_values):
   ratings.csv   one row per answer; re-running skips answers already there
   scores.csv    one row per comment and condition: LLM toxicity score next to the human score
 Distributed runs (one Slurm array task per job; --job / --num-jobs default to SLURM_ARRAY_TASK_ID / _COUNT):
@@ -26,19 +26,19 @@ Results (`--results`, an experiment folder, optional):
 Plot a run with scripts/plots/plot_profiles.py --data <data> --out <results>.
 
 Usage:
-    python scripts/experiments/profile_signal.py --data data/processed/consensus_n125_train/profiles_probe_20 \
-        --results data/experiments/02_profile_signal/probe_20_comments
+    python scripts/experiments/profile_signal.py --data data/processed/civil-comments/consensus_n125_train/profiles_probe_20 \
+        --results data/experiments/civil-comments/02_profile_signal/probe_20_comments
     python scripts/experiments/profile_signal.py --all --weightings as-is reversed \
-        --data data/processed/consensus_n125_train/profiles --results data/experiments/02_profile_signal/train_125_comments
+        --data data/processed/civil-comments/consensus_n125_train/profiles --results data/experiments/civil-comments/02_profile_signal/train_125_comments
     python scripts/experiments/profile_signal.py --all --single-values \
-        --data data/processed/consensus_n125_train/single_values --results data/experiments/03_single_values
+        --data data/processed/civil-comments/consensus_n125_train/single_values --results data/experiments/civil-comments/03_single_values
     python scripts/experiments/profile_signal.py --ids 5705144 --data /tmp/one_comment          # smoke test, no results
     python scripts/experiments/profile_signal.py --all --single-values --model vllm:Qwen/Qwen3-8B-FP8 --num-jobs 2 --job 0 \
-        --sample data/processed/consensus_n1000_train/sample.csv --data data/processed/consensus_n1000_train/single_values_qwen3_8b
-    python scripts/experiments/profile_signal.py --merge --sample data/processed/consensus_n1000_train/sample.csv \
-        --data data/processed/consensus_n1000_train/single_values_qwen3_8b
-    python scripts/experiments/profile_signal.py --analyze-only --data data/processed/consensus_n125_train/single_values \
-        --results data/experiments/03_single_values
+        --sample data/processed/civil-comments/consensus_n1000_train/sample.csv --data data/processed/civil-comments/consensus_n1000_train/single_values_qwen3_8b
+    python scripts/experiments/profile_signal.py --merge --sample data/processed/civil-comments/consensus_n1000_train/sample.csv \
+        --data data/processed/civil-comments/consensus_n1000_train/single_values_qwen3_8b
+    python scripts/experiments/profile_signal.py --analyze-only --data data/processed/civil-comments/consensus_n125_train/single_values \
+        --results data/experiments/civil-comments/03_single_values
 """
 import argparse
 import os
@@ -219,8 +219,8 @@ def analyze(data, results=None, sample_path=TRAIN_SAMPLE / "sample.csv"):
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--data", type=Path, required=True,
-                   help="where the answers go, e.g. data/processed/consensus_n125_train/single_values")
-    p.add_argument("--results", type=Path, help="experiment folder for summary.csv, e.g. data/experiments/03_single_values")
+                   help="where the answers go, e.g. data/processed/civil-comments/consensus_n125_train/single_values")
+    p.add_argument("--results", type=Path, help="experiment folder for summary.csv, e.g. data/experiments/civil-comments/03_single_values")
     p.add_argument("--model", default="gpt-6-luna",
                    help="gpt-* (OpenAI API), vllm:<hf id> (vLLM server, e.g. vllm:Qwen/Qwen3-8B-FP8) or an Ollama model")
     p.add_argument("--sample", type=Path, default=TRAIN_SAMPLE / "sample.csv", help="sample.csv with the comments")

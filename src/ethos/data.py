@@ -95,7 +95,7 @@ def embed(texts, model_name=EMBEDDING_MODEL, batch_size=32):
     return pd.DataFrame(vectors, index=texts.index, columns=[f"emb_{i}" for i in range(vectors.shape[1])])
 
 def load_embeddings(sample_dir=None):
-    """Sentence-BERT embeddings indexed by comment id, from data/processed/comments/embeddings/embeddings.parquet (written by
+    """Sentence-BERT embeddings indexed by comment id, from data/processed/civil-comments/comments/embeddings/embeddings.parquet (written by
     scripts/data/embed_comments.py). With `sample_dir`, only that sample's comments, in sample.csv order."""
     from ethos.paths import COMMENTS, EMBEDDINGS
     path = EMBEDDINGS / "embeddings.parquet"
@@ -113,7 +113,7 @@ def load_embeddings(sample_dir=None):
 N_VALUES, N_ANSWERS = 60, 10
 
 def load_scores(path, include_none=False):
-    """Read a single-value scores.csv (e.g. data/processed/consensus_n125_train/single_values/scores.csv, or a checkpoint
+    """Read a single-value scores.csv (e.g. data/processed/civil-comments/consensus_n125_train/single_values/scores.csv, or a checkpoint
     of a larger run) and return (rows, base):
 
     rows  one row per (comment, option): id, moral_value, llm_toxicity, human_toxicity, consensus_bin, and the target

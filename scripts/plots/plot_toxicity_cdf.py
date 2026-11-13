@@ -5,8 +5,8 @@ Reads <data>/ratings.csv (a steering run of profile_signal.py) and the sample's 
 human score is the share of annotators who rated it toxic.
 
 Usage:
-    python scripts/plots/plot_toxicity_cdf.py --data data/processed/boundary_n100_train/steer_toxicity_gpt_oss_20b_l7-19 \\
-        --sample data/processed/boundary_n100_train/sample.csv
+    python scripts/plots/plot_toxicity_cdf.py --data data/processed/civil-comments/boundary_n100_train/steer_toxicity_gpt_oss_20b_l7-19 \\
+        --sample data/processed/civil-comments/boundary_n100_train/sample.csv
 """
 import argparse
 import json

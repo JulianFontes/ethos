@@ -9,7 +9,7 @@ Usage:
   python scripts/judge.py --only gpt-6-luna-base            # only judges with these names
   python scripts/judge.py --limit 2                         # first 2 comments only
   python scripts/judge.py --query "consensus < 0.7"         # only comments whose sample.csv row matches
-  python scripts/judge.py --sample-dir data/processed/consensus_n125_train   # override the config's sample_dir
+  python scripts/judge.py --sample-dir data/processed/civil-comments/consensus_n125_train   # override the config's sample_dir
 """
 import argparse
 from pathlib import Path

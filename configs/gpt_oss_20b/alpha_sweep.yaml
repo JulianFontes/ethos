@@ -5,11 +5,11 @@
 #   scripts/shell/submit_vllm.sh --config configs/gpt_oss_20b/alpha_sweep.yaml [--dry-run]
 
 model: openai/gpt-oss-20b                    # Hugging Face id, served by vLLM (MXFP4 MoE, ~13 GB; 3.6B active parameters)
-sample: data/processed/consensus_n1000_train/sample.csv
-data: data/processed/consensus_n1000_train/steering_alpha_sweep_gpt_oss_20b_l11-16
+sample: data/processed/civil-comments/consensus_n1000_train/sample.csv
+data: data/processed/civil-comments/consensus_n1000_train/steering_alpha_sweep_gpt_oss_20b_l11-16
 # Earlier sweeps (_v2, _fine) ran a stale plugin that steered layers 7-19, not 11-16 (see the NOTE.md in
-# data/experiments/05_activation_steering/alpha_sweep_gpt_oss_20b/). _v2 (fractions +-0.5 / 0.25 / 0.1 / 0.05) broke at -0.1 and stronger (<= 4% valid answers; results in
-# data/experiments/05_activation_steering/alpha_sweep_gpt_oss_20b/coarse/); v1 (no token limits) stalled at -0.5.
+# data/experiments/civil-comments/05_activation_steering/alpha_sweep_gpt_oss_20b/). _v2 (fractions +-0.5 / 0.25 / 0.1 / 0.05) broke at -0.1 and stronger (<= 4% valid answers; results in
+# data/experiments/civil-comments/05_activation_steering/alpha_sweep_gpt_oss_20b/coarse/); v1 (no token limits) stalled at -0.5.
 ids: [5554606, 1083017, 621351, 591640, 5274283, 6279132, 5464059, 5192086, 726270, 896216,   # first 20 of order.csv
       4975044, 5325266, 5120093, 5736820, 5166965, 5096575, 5780838, 5648853, 5624392, 5542520]   # (4 per band)
 

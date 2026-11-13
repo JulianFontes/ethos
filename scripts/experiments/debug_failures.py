@@ -10,7 +10,7 @@ Needs a running vLLM server (VLLM_BASE_URL); scripts/shell/debug_failures.sh sta
 Writes <out>/responses.csv (one row per response) and prints a summary.
 
 Usage:
-    python scripts/experiments/debug_failures.py --data data/processed/consensus_n1000_train/single_values_gpt_oss_20b \
+    python scripts/experiments/debug_failures.py --data data/processed/civil-comments/consensus_n1000_train/single_values_gpt_oss_20b \
         --model openai/gpt-oss-20b --reasoning-effort low --out <data>/debug
 """
 import argparse
@@ -43,7 +43,7 @@ def gap_pairs(data, samples, n_conds):
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--data", type=Path, required=True, help="the run's data folder (with jobs/*.csv)")
-    p.add_argument("--sample", type=Path, default=Path("data/processed/consensus_n1000_train/sample.csv"))
+    p.add_argument("--sample", type=Path, default=Path("data/processed/civil-comments/consensus_n1000_train/sample.csv"))
     p.add_argument("--model", required=True, help="Hugging Face id served by vLLM, e.g. openai/gpt-oss-20b")
     p.add_argument("--reasoning-effort", default="low")
     p.add_argument("--samples", type=int, default=10, help="answers per comment and condition in the run")

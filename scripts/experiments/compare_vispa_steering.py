@@ -12,8 +12,8 @@ Two modes:
                      under a newer transformers.
 
 Usage:
-    python scripts/experiments/compare_vispa_steering.py --vispa-root <dir> --out data/experiments/05_activation_steering/vispa_equivalence
-    python scripts/experiments/compare_vispa_steering.py --pairs <dir>/data/value --out data/experiments/05_activation_steering/vispa_equivalence
+    python scripts/experiments/compare_vispa_steering.py --vispa-root <dir> --out data/experiments/civil-comments/05_activation_steering/vispa_equivalence
+    python scripts/experiments/compare_vispa_steering.py --pairs <dir>/data/value --out data/experiments/civil-comments/05_activation_steering/vispa_equivalence
 """
 import argparse
 import json

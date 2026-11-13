@@ -4,7 +4,7 @@
 # Fixed-profile experiments run through scripts/experiments/profile_signal.py instead.
 
 # Sample to judge: its sample.csv (comments and human labels); results go to data/judgements/<folder name>/.
-sample_dir: data/processed/consensus_n125_test
+sample_dir: data/processed/civil-comments/consensus_n125_test
 
 # Settings shared by the Ollama judges; a judge's own settings override them.
 llm_defaults:

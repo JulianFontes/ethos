@@ -4,10 +4,10 @@ Data lives in data/processed/ and data/judgements/; results (figures, summaries,
 Every script that writes results calls write_sources(out_dir, inputs), which writes <out_dir>/sources.yaml:
 
     created: 2026-11-10 14:32
-    command: scripts/plots/plot_profiles.py --data data/processed/consensus_n125_train/single_values ...
+    command: scripts/plots/plot_profiles.py --data data/processed/civil-comments/consensus_n125_train/single_values ...
     git_commit: a1b2c3d (uncommitted changes)
     inputs:
-      - path: data/processed/consensus_n125_train/single_values/ratings.csv
+      - path: data/processed/civil-comments/consensus_n125_train/single_values/ratings.csv
         rows: 76250
         md5: 9f2c...
 

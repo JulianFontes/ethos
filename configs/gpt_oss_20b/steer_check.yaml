@@ -4,8 +4,8 @@
 #   scripts/shell/submit_vllm.sh --config configs/gpt_oss_20b/steer_check.yaml [--dry-run]
 
 model: openai/gpt-oss-20b
-sample: data/processed/consensus_n1000_train/sample.csv
-data: data/processed/consensus_n1000_train/steer_check_gpt_oss_20b_l7-19
+sample: data/processed/civil-comments/consensus_n1000_train/sample.csv
+data: data/processed/civil-comments/consensus_n1000_train/steer_check_gpt_oss_20b_l7-19
 ids: [5554606, 1083017, 621351, 591640, 5274283, 6279132, 5464059, 5192086, 726270, 896216,   # first 20 of order.csv
       4975044, 5325266, 5120093, 5736820, 5166965, 5096575, 5780838, 5648853, 5624392, 5542520]   # (4 per band)
 

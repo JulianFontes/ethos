@@ -5,8 +5,8 @@
 # The run folder gets steering_layers.png and steering.json (which layers, vectors and strengths).
 
 model: Qwen/Qwen3-8B-FP8                   # Hugging Face id, served by vLLM (FP8 weights, ~9 GB)
-sample: data/processed/consensus_n1000_train/sample.csv
-data: data/processed/consensus_n1000_train/vllm_smoke_test_qwen_steer   # throwaway: delete after checking
+sample: data/processed/civil-comments/consensus_n1000_train/sample.csv
+data: data/processed/civil-comments/consensus_n1000_train/vllm_smoke_test_qwen_steer   # throwaway: delete after checking
 ids: [240450, 1020342]                     # 2 comments x 1 condition x 10 answers x 3 steering settings = 60 answers
 
 # What to ask (see profile_signal.py)

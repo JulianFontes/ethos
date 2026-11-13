@@ -1,6 +1,6 @@
 """Check the vLLM steering plugin (plugins/vllm_steer) against our HF steering, which matches VISPA's code.
 
-Reference: data/experiments/05_activation_steering/vispa_equivalence/ours_tf4.57.6.npz (Qwen3-8B, float16, layers 10-25,
+Reference: data/experiments/civil-comments/05_activation_steering/vispa_equivalence/ours_tf4.57.6.npz (Qwen3-8B, float16, layers 10-25,
 fairness / justice / tradition; directions and steered top-5 logits for 3 prompts at alpha 1 and 4).
 
   --run      (vLLM's environment, with the plugin) capture the pair sentences' states in vLLM, and steer the 3 prompts
@@ -23,7 +23,7 @@ from ethos.steering.in_vllm import capture, make_llm
 from ethos.steering.pairs import load_pairs
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))   # for compare_vispa_steering.PROMPTS in --compare
-REF = Path("data/experiments/05_activation_steering/vispa_equivalence")
+REF = Path("data/experiments/civil-comments/05_activation_steering/vispa_equivalence")
 PROMPTS = [  # same as compare_vispa_steering.PROMPTS (checked in --compare)
     "Comment: You people are all idiots and should be banned from this site.\nIs this comment toxic? Answer:",
     "What should a manager do when an employee makes a costly mistake?",

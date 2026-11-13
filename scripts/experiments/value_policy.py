@@ -5,9 +5,9 @@ The tree learns to predict distance = |LLM score - human score| from the comment
 the policy picks the value with the lowest predicted distance. Evaluated with cross-validation on the train sample
 (split by comment, balanced by consensus band, 5 folds x 5 repeats) at each depth, against the baselines.
 
-Data: a single-value scores.csv (--scores; default data/processed/consensus_n125_train/single_values/scores.csv, or a
+Data: a single-value scores.csv (--scores; default data/processed/civil-comments/consensus_n125_train/single_values/scores.csv, or a
 checkpoint such as .../single_values_qwen3_8b/checkpoints/n0200/scores.csv) and the comment embeddings.
-Results (--out, default data/experiments/04_value_policy/decision_tree/):
+Results (--out, default data/experiments/civil-comments/04_value_policy/decision_tree/):
   cv_results.csv    one row per round and depth: train/val MSE, policy distance, tie share, leaves
   baselines.csv     one row per round and split: no value, random, best fixed value, oracle
   summary.csv       mean and std per depth, validation

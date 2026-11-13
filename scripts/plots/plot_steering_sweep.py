@@ -7,8 +7,8 @@ attempts, e.g. invalid JSON) and steering.json. Writes to --out:
   examples.csv       a few rationales per strength, to read how the text changes
 
 Usage:
-    python scripts/plots/plot_steering_sweep.py --data data/processed/consensus_n1000_train/steering_alpha_sweep_gpt_oss_20b \
-        --out data/experiments/05_activation_steering/alpha_sweep_gpt_oss_20b
+    python scripts/plots/plot_steering_sweep.py --data data/processed/civil-comments/consensus_n1000_train/steering_alpha_sweep_gpt_oss_20b \
+        --out data/experiments/civil-comments/05_activation_steering/alpha_sweep_gpt_oss_20b
 """
 import argparse
 import json

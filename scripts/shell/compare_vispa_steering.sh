@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regression test for our PCA steering (src/ethos/steering.py), on one gpu_test slice (~5 min). Run after changing it.
 # Refits the directions for 3 VISPA values on Qwen3-8B and steers 3 prompts; fails unless the directions, steered top
-# tokens and top logits match the reference in data/experiments/05_activation_steering/vispa_equivalence/
+# tokens and top logits match the reference in data/experiments/civil-comments/05_activation_steering/vispa_equivalence/
 # (ours_tf4.57.6.npz). That reference was checked against VISPA's own code (e038eff + RepE 5455d8a): same directions
 # (cosine 1.000000) and same steered outputs; see compare_vispa_tf4.57.6.json.
 #
@@ -13,7 +13,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 root=$PWD
 vispa=${VISPA:-}
-out=data/experiments/05_activation_steering/vispa_equivalence
+out=data/experiments/civil-comments/05_activation_steering/vispa_equivalence
 mkdir -p "$out/logs"
 
 sbatch -p "${PARTITION:-gpu_test}" --account="${ACCOUNT:-protopapas_lab}" --gres=gpu:1 -c 4 --mem=64G -t "${TIME:-01:00:00}" \

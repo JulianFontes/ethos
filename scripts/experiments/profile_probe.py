@@ -14,9 +14,9 @@ rated with the minimal prompt (the same prompt and answer format as ethos.judges
 
 score = share of ratings that are TOXIC. Older probes (annotator instructions, reasoning, thinking) are in .archive/.
 
-Data (--data, default data/processed/consensus_n125_test/profile_probe/<set>/):
+Data (--data, default data/processed/civil-comments/consensus_n125_test/profile_probe/<set>/):
   ratings.csv   one row per rating (id, model, condition, rating number, profile, evaluation, rationale)
-Results (--results, default data/experiments/01_profile_probe/<set>/):
+Results (--results, default data/experiments/civil-comments/01_profile_probe/<set>/):
   summary.csv   score per comment and condition, with the human score and Detoxify
   sources.yaml  which data the summary came from
 Re-running skips ratings already in ratings.csv.
@@ -39,7 +39,7 @@ from ethos.paths import ROOT
 from ethos.scores import toxicity_score
 from ethos.sources import write_sources
 
-SAMPLE = ROOT / "data/processed/consensus_n125_test/sample.csv"
+SAMPLE = ROOT / "data/processed/civil-comments/consensus_n125_test/sample.csv"
 JUDGEMENTS = ROOT / "data/judgements/consensus_n125_test/judgements.csv"
 BASE_URL, TEMPERATURE = "http://localhost:11434/v1", 1.0
 MODELS = ["qwen3:8b", "gpt-6-luna"]   # qwen3:8b through local Ollama, gpt-6-luna through the OpenAI API
@@ -69,12 +69,12 @@ def main():
     p.add_argument("--equal-weights", action="store_true", help="give every profile value the same weight")
     p.add_argument("--scale", type=float, default=1.0, help="multiply ratings per condition (smoke test: 0.1)")
     p.add_argument("--workers", type=int, default=4, help="calls in flight")
-    p.add_argument("--data", type=Path, help="answers folder (default: data/processed/consensus_n125_test/profile_probe/<set>)")
-    p.add_argument("--results", type=Path, help="summary folder (default: data/experiments/01_profile_probe/<set>)")
+    p.add_argument("--data", type=Path, help="answers folder (default: data/processed/civil-comments/consensus_n125_test/profile_probe/<set>)")
+    p.add_argument("--results", type=Path, help="summary folder (default: data/experiments/civil-comments/01_profile_probe/<set>)")
     args = p.parse_args()
     conditions = SETS[args.set]
-    data = args.data or ROOT / "data/processed/consensus_n125_test/profile_probe" / args.set
-    results = args.results or ROOT / "data/experiments/01_profile_probe" / args.set
+    data = args.data or ROOT / "data/processed/civil-comments/consensus_n125_test/profile_probe" / args.set
+    results = args.results or ROOT / "data/experiments/civil-comments/01_profile_probe" / args.set
 
     values = load_values("prompts/profiles/taxonomy-values.txt")
     fixed = {k: load_profile(path, values) for k, path in FIXED.items()}

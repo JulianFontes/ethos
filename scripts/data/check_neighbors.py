@@ -2,14 +2,14 @@
 
 Picks `--n` random comments from <folder>, finds each one's `--k` nearest neighbours in the same folder by cosine
 similarity (embeddings are unit length, so cosine = dot product), and writes them to
-data/experiments/embeddings/<folder name>/neighbors.md to read, plus sources.yaml.
+data/experiments/civil-comments/embeddings/<folder name>/neighbors.md to read, plus sources.yaml.
 Each comment is shown with its id, split and human toxicity score.
 
 Run scripts/data/embed_comments.py on the folder first.
 
 Usage:
-    python scripts/data/check_neighbors.py                                  # data/processed/comments, 10 comments, 5 neighbours
-    python scripts/data/check_neighbors.py --folder data/processed/consensus_n125_train --seed 1
+    python scripts/data/check_neighbors.py                                  # data/processed/civil-comments/comments, 10 comments, 5 neighbours
+    python scripts/data/check_neighbors.py --folder data/processed/civil-comments/consensus_n125_train --seed 1
 """
 import argparse
 from pathlib import Path
@@ -32,12 +32,12 @@ def comment_block(text, max_chars=None):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--folder", type=Path, default=ROOT / "data/processed/comments",
-                   help="data/processed/comments, or a sample folder (neighbours within that sample)")
+    p.add_argument("--folder", type=Path, default=ROOT / "data/processed/civil-comments/comments",
+                   help="data/processed/civil-comments/comments, or a sample folder (neighbours within that sample)")
     p.add_argument("--n", type=int, default=10, help="random comments to check")
     p.add_argument("--k", type=int, default=5, help="nearest neighbours per comment")
     p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--out", type=Path, default=None, help="default: data/experiments/embeddings/<folder name>/neighbors.md")
+    p.add_argument("--out", type=Path, default=None, help="default: data/experiments/civil-comments/embeddings/<folder name>/neighbors.md")
     args = p.parse_args()
     folder = ROOT / args.folder
 
