@@ -8,7 +8,7 @@
 
 model: meta-llama/Meta-Llama-3-8B-Instruct  # Hugging Face id, served by vLLM (bf16, ~16 GB)
 sample: data/processed/civil-comments/boundary_n100_train/sample.csv   # 100 comments with human toxicity closest to 0.5
-data: data/processed/civil-comments/boundary_n100_train/steer_toxicity_llama3_8b_l10-25
+data: data/processed/civil-comments/boundary_n100_train/steer_toxicity_llama3_8b_l10-25_a0.3
 
 # What to ask (see profile_signal.py)
 single_values: true
@@ -18,13 +18,13 @@ reasoning_effort: none                     # Llama 3 does not reason before answ
 workers: 64                                # requests in flight = vLLM --max-num-seqs (bf16 weights leave little KV cache)
 checkpoint_every: 100                      # comments per checkpoint when merging
 
-# Activation steering: VISPA's own settings for this model (paper, Appendix C.1 / D): projection (PCA) vectors at
-# layers 10-25 with a fixed alpha of 1.0.
+# Activation steering: VISPA's layers and vectors for this model (paper, Appendix C.1 / D). Their alpha 1.0 broke the
+# model (gibberish rationales); 0.3 is the strongest that kept them coherent (alpha_sweep.yaml).
 steering:
   vectors: data/processed/steering_vectors/Meta-Llama-3-8B-Instruct   # fit_steering_vectors.sh (see above)
   layers: "10-25"
   values: [toxicity]
-  alphas: [0, -1.0, 1.0]                   # unsteered, away from the value, toward it
+  alphas: [0, -0.3, 0.3]                   # unsteered, away from the value, toward it
 
 # Cluster
 job_size: 500                              # comments per job (= per node)
