@@ -2,7 +2,7 @@
 
 Install it into vLLM's environment, e.g. `uvx --with-editable plugins/vllm_steer --from vllm==0.33.0 vllm serve ...` (editable, so
 changes to this file are picked up; a plain --with install is cached); vLLM then
-loads it in every process (entry point vllm.general_plugins). It patches the decoder layers of Qwen3 and gpt-oss and
+loads it in every process (entry point vllm.general_plugins). It patches the decoder layers of Qwen3, gpt-oss and Llama and
 does nothing unless asked:
 
 Steering  ETHOS_STEER=<value.npz> (keys layer_<l>, written by ethos.steering.activation.save_directions) and ETHOS_STEER_ALPHA=<α>:
@@ -62,7 +62,7 @@ def _patch(cls):
 def register():
     """Entry point: patch the decoder layers vLLM will build."""
     patched = []
-    for module, name in [("qwen3", "Qwen3DecoderLayer"), ("gpt_oss", "TransformerBlock")]:
+    for module, name in [("qwen3", "Qwen3DecoderLayer"), ("gpt_oss", "TransformerBlock"), ("llama", "LlamaDecoderLayer")]:
         try:
             mod = __import__(f"vllm.model_executor.models.{module}", fromlist=[name])
             cls = getattr(mod, name)

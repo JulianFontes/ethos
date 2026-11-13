@@ -153,7 +153,8 @@ def serve(model, log, scratch, max_num_seqs, env=None, uvx_args=(), serve_args=(
     env = dict(os.environ) | {
         "UV_CACHE_DIR": f"{scratch}/uv-cache", "HF_HOME": f"{scratch}/huggingface", "PYTHONUNBUFFERED": "1",
         "PYTHONPATH": f"{ROOT}/src", "VLLM_BASE_URL": f"http://127.0.0.1:{port}/v1",
-        "VLLM_USE_FLASHINFER_SAMPLER": "0"} | (env or {})   # its sampler compiles CUDA code; GPU nodes have no nvcc
+        "VLLM_USE_FLASHINFER_SAMPLER": "0",       # its sampler compiles CUDA code; GPU nodes have no nvcc
+        "HF_HUB_OFFLINE": "1"} | (env or {})      # models come from the shared cache (gated ones need no token at run time)
     with open(log, "a") as f:
         f.write(f"\n=== vllm serve {model} {' '.join(serve_args)} ===\n")
     server = subprocess.Popen(

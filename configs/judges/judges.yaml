@@ -41,7 +41,7 @@ judges:
     type: openai_minimal_dmp
     model: gpt-6-luna
     prompt: prompts/judge_minimal_pluralistic.txt
-    values: prompts/taxonomy-values.txt
+    values: prompts/profiles/taxonomy-values.txt
     top_k: 10
     equal_weights: true
     seed: 0                                  # rating i uses seed + i, combined with the comment id

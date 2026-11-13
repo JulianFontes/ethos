@@ -232,7 +232,7 @@ def main():
     p.add_argument("--profiles", type=Path, default=Path("prompts/profiles"),
                    help="folder of profile YAML files, e.g. prompts/profiles/vispa-moral-profile")
     p.add_argument("--any-values", action="store_true",
-                   help="allow profile values that are not in prompts/taxonomy-values.txt")
+                   help="allow profile values that are not in prompts/profiles/taxonomy-values.txt")
     p.add_argument("--samples", type=int, default=10, help="answers per comment and condition")
     p.add_argument("--save-reasoning", action="store_true",
                    help="also save each answer's reasoning text (gpt-oss through vLLM; makes the answer files large)")
@@ -259,7 +259,7 @@ def main():
         sample = pd.read_csv(args.sample)
         texts = sample.set_index("id").comment_text
         ids = args.ids or (texts.index.tolist() if args.all else uncertain_comments(args.n_comments))
-        conds = prompt_conditions(load_values("prompts/taxonomy-values.txt"), args.weightings, args.single_values,
+        conds = prompt_conditions(load_values("prompts/profiles/taxonomy-values.txt"), args.weightings, args.single_values,
                                   args.profiles, args.any_values)
         if args.conditions:                          # e.g. only "none": no value in the prompt
             unknown = set(args.conditions) - set(conds)

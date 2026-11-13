@@ -12,7 +12,7 @@ data: data/processed/consensus_n1000_train/vispa_profiles_gpt_oss_20b   # answer
 # What to ask (see profile_signal.py)
 single_values: false                       # the profiles in `profiles` (true: each taxonomy value alone)
 profiles: prompts/profiles/vispa-moral-profile   # folder of profile YAML files
-any_values: true                           # VISPA values are not in prompts/taxonomy-values.txt
+any_values: true                           # VISPA values are not in prompts/profiles/taxonomy-values.txt
 weightings: [as-is]                        # every VISPA weight is 1.0, so equal / reversed would repeat as-is
 samples: 10                                # answers per comment and condition
 reasoning_effort: low                      # gpt-oss always reasons; low is its cheapest setting

@@ -6,7 +6,9 @@ submits it. For each setting (unsteered, value@+alpha, not_value@-alpha) and eac
 its last token is recorded after each --capture layer. Steering is added after every --layers layer (from the value's
 vector file), so a captured layer's state includes the pushes of all steered layers up to it.
 
-Writes <out>/states.npz: ids, and <setting>_<layer> arrays of shape (comments, hidden); plus meta.json.
+--out is the run's data folder (e.g. the folder of the matching steering run's answers). Writes <out>/hidden_states/:
+states.npz (ids, and <setting>_<layer> arrays of shape (comments, hidden)) and meta.json; the shell script then draws
+<out>/figures/shift_by_layer.png (scripts/plots/plot_steered_states.py).
 """
 import argparse
 import csv
@@ -33,9 +35,10 @@ def main():
     p.add_argument("--sample", default="data/processed/consensus_n1000_train/sample.csv")
     p.add_argument("--n", type=int, default=100, help="the first n comments of --order (band-balanced)")
     p.add_argument("--reasoning-effort", default="low", help="none = Qwen3 thinking off; low / medium / high = gpt-oss reasoning")
-    p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--out", type=Path, required=True, help="the run's data folder; states go to <out>/hidden_states/")
     args = p.parse_args()
-    args.out.mkdir(parents=True, exist_ok=True)
+    states_dir = args.out / "hidden_states"
+    states_dir.mkdir(parents=True, exist_ok=True)
     steered, captured = parse_layers(args.layers), parse_layers(args.capture)
 
     ids = [int(r["id"]) for r in csv.DictReader(open(ROOT / args.order))][: args.n]
@@ -62,13 +65,13 @@ def main():
         for l, s in capture(llm, prompts, captured).items():
             states[f"{name}_{l}"] = s
         print(f"{name}: {len(ids)} comments, layers {captured}", flush=True)
-    np.savez(args.out / "states.npz", **states)
-    (args.out / "meta.json").write_text(json.dumps(
+    np.savez(states_dir / "states.npz", **states)
+    (states_dir / "meta.json").write_text(json.dumps(
         {"model": args.model, "vectors": args.vectors, "value": args.value, "steered_layers": steered,
-         "captured_layers": captured, "settings": settings, "n": len(ids), "order": args.order,
+         "captured_layers": captured, "settings": settings, "n": len(ids), "order": args.order, "sample": args.sample,
          "reasoning_effort": args.reasoning_effort,
          "prompt": "prompts/judge_minimal.txt + 'Comment:\\n<text>', chat template, last token of the prompt"}, indent=1))
-    print(f"wrote {args.out}/states.npz", flush=True)
+    print(f"wrote {states_dir}/states.npz", flush=True)
 
 
 if __name__ == "__main__":

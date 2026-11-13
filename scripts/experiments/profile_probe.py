@@ -76,7 +76,7 @@ def main():
     data = args.data or ROOT / "data/processed/consensus_n125_test/profile_probe" / args.set
     results = args.results or ROOT / "data/experiments/01_profile_probe" / args.set
 
-    values = load_values("prompts/taxonomy-values.txt")
+    values = load_values("prompts/profiles/taxonomy-values.txt")
     fixed = {k: load_profile(path, values) for k, path in FIXED.items()}
     prompts = {f: (ROOT / f).read_text().strip() for f in {c[0] for c in conditions.values()}}
     texts = pd.read_csv(SAMPLE).set_index("id").comment_text

@@ -1,0 +1,35 @@
+# Activation steering with toxicity on Qwen3-8B (FP8), on the 100 human-boundary comments (toxicity closest to 0.5): the
+# no-value prompt (thinking off) unsteered, toward toxicity (+alpha: VISPA's "for" sentences, kind / non-toxic posting)
+# and toward not_toxicity (-alpha). 3 settings x 100 comments x 10 answers. The Qwen counterpart of
+# configs/gpt_oss_20b/steer_toxicity_boundary.yaml.
+#   scripts/shell/submit_vllm.sh --config configs/qwen3_8b/steer_toxicity_boundary.yaml [--dry-run]
+
+model: Qwen/Qwen3-8B-FP8                   # Hugging Face id, served by vLLM (FP8 weights, ~9 GB)
+sample: data/processed/boundary_n100_train/sample.csv   # 100 comments with human toxicity closest to 0.5
+data: data/processed/boundary_n100_train/steer_toxicity_qwen3_8b_fp8_l11-28
+
+# What to ask (see profile_signal.py)
+single_values: true
+conditions: [none]                         # only the no-value prompt: any change comes from the activation steering
+samples: 10                                # answers per comment and condition
+reasoning_effort: none                     # thinking off (Qwen3), as in the Qwen runs: no reasoning text to save
+workers: 128                               # requests in flight per node = vLLM --max-num-seqs (gpu_test)
+checkpoint_every: 100                      # comments per checkpoint when merging
+
+# Activation steering. Layers 11-28 of 36: the same share of depth as gpt-oss's 7-19 of 24 (and VISPA's 10-25 of 32).
+# Alpha +-2.67 = ~2.2% of the mean hidden-state size over those layers (~120, from Qwen3-8B states), the same fraction as
+# gpt-oss's +-68.6. The capture with these settings (data/experiments/05_activation_steering/.archive/
+# steered_states_toxicity_boundary_qwen3) shifted the states strongly along the vector through the last layer.
+steering:
+  vectors: data/processed/steering_vectors/Qwen3-8B-FP8   # PCA vectors of the 31 VISPA values (fit_steering_vectors.sh)
+  layers: "11-28"
+  values: [toxicity]
+  alphas: [0, -2.67, 2.67]                 # unsteered, away from the value, toward it
+
+# Cluster
+job_size: 500                              # comments per job (= per node)
+max_nodes: 1                               # 100 comments: one job
+time: "02:00:00"
+partition: gpu_test                        # 20 GB A100 MIG slice; FP8 weights leave ~8 GB for KV cache
+account: protopapas_lab
+scratch: /n/netscratch/protopapas_lab/Lab/$USER   # vLLM and model downloads are cached here

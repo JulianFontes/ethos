@@ -1,0 +1,35 @@
+# Activation steering with toxicity on Meta-Llama-3-8B-Instruct (VISPA's default steering model), on the 100
+# human-boundary comments (toxicity closest to 0.5): the no-value prompt unsteered, toward toxicity (+alpha: VISPA's
+# "for" sentences, kind / non-toxic posting) and toward not_toxicity (-alpha). 3 settings x 100 comments x 10 answers.
+# The Llama counterpart of configs/gpt_oss_20b/steer_toxicity_boundary.yaml and configs/qwen3_8b/steer_toxicity_boundary.yaml.
+#   scripts/shell/submit_vllm.sh --config configs/llama3_8b/steer_toxicity_boundary.yaml [--dry-run]
+# Needs the model in the shared cache (gated: downloaded once with HF_TOKEN from .env) and the toxicity vector:
+#   PAIRS=data/VISPA-values scripts/shell/fit_steering_vectors.sh --model meta-llama/Meta-Llama-3-8B-Instruct --layers 10-25 --values toxicity
+
+model: meta-llama/Meta-Llama-3-8B-Instruct  # Hugging Face id, served by vLLM (bf16, ~16 GB)
+sample: data/processed/boundary_n100_train/sample.csv   # 100 comments with human toxicity closest to 0.5
+data: data/processed/boundary_n100_train/steer_toxicity_llama3_8b_l10-25
+
+# What to ask (see profile_signal.py)
+single_values: true
+conditions: [none]                         # only the no-value prompt: any change comes from the activation steering
+samples: 10                                # answers per comment and condition
+reasoning_effort: none                     # Llama 3 does not reason before answering
+workers: 64                                # requests in flight = vLLM --max-num-seqs (bf16 weights leave little KV cache)
+checkpoint_every: 100                      # comments per checkpoint when merging
+
+# Activation steering: VISPA's own settings for this model (paper, Appendix C.1 / D): projection (PCA) vectors at
+# layers 10-25 with a fixed alpha of 1.0.
+steering:
+  vectors: data/processed/steering_vectors/Meta-Llama-3-8B-Instruct   # fit_steering_vectors.sh (see above)
+  layers: "10-25"
+  values: [toxicity]
+  alphas: [0, -1.0, 1.0]                   # unsteered, away from the value, toward it
+
+# Cluster
+job_size: 500                              # comments per job (= per node)
+max_nodes: 1                               # 100 comments: one job
+time: "03:00:00"
+partition: gpu_test                        # 20 GB A100 MIG slice; bf16 weights (~16 GB) leave ~2 GB for KV cache
+account: protopapas_lab
+scratch: /n/netscratch/protopapas_lab/Lab/$USER   # vLLM and model downloads are cached here

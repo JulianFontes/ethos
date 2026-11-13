@@ -55,7 +55,7 @@ def main():
     data, out = ROOT / args.data, ROOT / args.out
     out.mkdir(parents=True, exist_ok=True)
 
-    conds = prompt_conditions(load_values("prompts/taxonomy-values.txt"), single_values=True)
+    conds = prompt_conditions(load_values("prompts/profiles/taxonomy-values.txt"), single_values=True)
     texts = pd.read_csv(ROOT / args.sample).set_index("id").comment_text
     gaps, ok = gap_pairs(data, args.samples, len(conds))
     rng = random.Random(0)
