@@ -33,7 +33,7 @@ from ethos.sources import write_sources
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--data-dir", default="data/processed/civil-comments/comments")
+    parser.add_argument("--data-dir", default="data/processed/civil-comments/all_comments")
     parser.add_argument("--out", default=EXPERIMENTS / "dataset" / "attributes")
     parser.add_argument("--splits", nargs="+", default=["all"], help="train, test and/or all (both together)")
     args = parser.parse_args()

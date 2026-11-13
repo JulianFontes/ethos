@@ -1,7 +1,7 @@
 # Config for scripts/data/extract_consensus_sample.py: the train counterpart of configs/data/sample_consensus_test.yaml, with the
 # same filters (top-level comments, >= 30 raters, deduplicated) and bins, for tuning without touching the test sample.
 
-source: data/processed/civil-comments/comments/comments.csv
+source: data/processed/civil-comments/all_comments/comments.csv
 split: train          # tuning set; the test sample stays held out
 per_bin: 25           # comments drawn from each bin
 seed: 0               # random seed for a reproducible draw
