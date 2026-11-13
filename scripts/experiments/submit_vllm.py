@@ -96,6 +96,7 @@ def run_args(cfg):
         + (["--weightings", *cfg["weightings"]] if cfg.get("weightings") else []) \
         + (["--any-values"] if cfg.get("any_values") else []) \
         + (["--conditions", *cfg["conditions"]] if cfg.get("conditions") else []) \
+        + (["--save-reasoning"] if cfg.get("save_reasoning") else []) \
         + [arg for key in ("max_tokens", "attempts", "passes") if key in cfg
            for arg in (f"--{key.replace('_', '-')}", str(cfg[key]))]
 

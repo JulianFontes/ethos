@@ -27,7 +27,8 @@ def get_client(model, base_url=DEFAULT_BASE_URL):
 
 def chat_json(client, model, system, user, schema, temperature=None, max_tokens=None,
               reasoning_effort=None, extra_body=None):
-    """One chat call that must return JSON matching `schema`. Returns a dict.
+    """One chat call that must return JSON matching `schema`. Returns a dict; when the server returns the model's
+    reasoning (vLLM for reasoning models such as gpt-oss), it is added under "_reasoning".
 
     temperature / max_tokens / reasoning_effort are only sent when given; otherwise the
     model's defaults apply. reasoning_effort="none" turns off thinking for models like Qwen3
@@ -54,4 +55,9 @@ def chat_json(client, model, system, user, schema, temperature=None, max_tokens=
         },
         **kwargs,
     )
-    return json.loads(resp.choices[0].message.content)
+    msg = resp.choices[0].message
+    answer = json.loads(msg.content)
+    reasoning = getattr(msg, "reasoning_content", None) or getattr(msg, "reasoning", None)
+    if reasoning:
+        answer["_reasoning"] = reasoning
+    return answer

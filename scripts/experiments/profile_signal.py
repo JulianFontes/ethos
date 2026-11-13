@@ -82,10 +82,11 @@ def comment_order(sample, ids, seed=0):
 # --- collecting answers ----------------------------------------------------------------------------------------
 
 def collect(path, conds, texts, samples, model, workers, reasoning_effort="none", flush_every=500, attempts=3,
-            max_tokens=None):
+            max_tokens=None, save_reasoning=False):
     """Ask the model for every (comment, condition, answer number) not yet in `path`, appending the answers in batches
     of `flush_every`. Each call is tried up to `attempts` times (1 s, 2 s, ... apart); calls that still fail are skipped
-    and retried on the next pass or run. Every failed attempt is appended to failures.csv next to `path` (for jobs,
+    and retried on the next pass or run. save_reasoning adds a "reasoning" column with the model's reasoning text
+    (reasoning models served by vLLM, e.g. gpt-oss; large, so off by default). Every failed attempt is appended to failures.csv next to `path` (for jobs,
     <data>/failures/job_<i>of<N>.csv). Prints the speed (answers per second) and why calls failed."""
     done = set()
     if path.exists():
@@ -148,7 +149,8 @@ def collect(path, conds, texts, samples, model, workers, reasoning_effort="none"
                     bar.set_postfix(failed=failed, refresh=False)
                     continue
                 rows.append({"id": cid, "condition": c, "rating": i, "profile": conds[c],
-                             "toxic": answer["evaluation"] == "TOXIC", "rationale": answer["rationale"]})
+                             "toxic": answer["evaluation"] == "TOXIC", "rationale": answer["rationale"]}
+                            | ({"reasoning": answer.get("_reasoning", "")} if save_reasoning else {}))
                 if len(rows) >= flush_every:
                     rows = flush(rows)
                     failed_attempts = flush(failed_attempts, failures_path)
@@ -232,6 +234,8 @@ def main():
     p.add_argument("--any-values", action="store_true",
                    help="allow profile values that are not in prompts/taxonomy-values.txt")
     p.add_argument("--samples", type=int, default=10, help="answers per comment and condition")
+    p.add_argument("--save-reasoning", action="store_true",
+                   help="also save each answer's reasoning text (gpt-oss through vLLM; makes the answer files large)")
     p.add_argument("--workers", type=int, default=16)
     p.add_argument("--max-tokens", type=int, help="cap on generated tokens per answer, reasoning included (default: none)")
     p.add_argument("--attempts", type=int, default=3, help="tries per call before it counts as failed")
@@ -275,7 +279,7 @@ def main():
             print(f"job {args.job} of {args.num_jobs}: {len(ids)} comments")
         for attempt in range(args.passes):           # retry failed calls (up to --passes passes)
             if not collect(path, conds, texts.loc[ids], args.samples, args.model, args.workers, args.reasoning_effort,
-                           attempts=args.attempts, max_tokens=args.max_tokens):
+                           attempts=args.attempts, max_tokens=args.max_tokens, save_reasoning=args.save_reasoning):
                 break
         if args.num_jobs > 1:
             return print(f"job done; combine with: --merge --sample {args.sample} --data {args.data}")
