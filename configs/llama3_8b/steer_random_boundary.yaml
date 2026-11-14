@@ -1,4 +1,4 @@
-# Control for steer_toxicity_boundary.yaml: the same run with 3 random vectors in place of the toxicity vector (same
+# Control for .archive/steer_toxicity_boundary.yaml: the same run with 3 random vectors in place of the toxicity vector (same
 # layers, length and alpha +-0.3). If they shift TOXIC as much, the toxicity effect is a generic push, not the value's.
 # Random vectors: python scripts/experiments/make_random_vectors.py --vectors data/processed/steering_vectors/Meta-Llama-3-8B-Instruct
 #   scripts/shell/submit_vllm.sh --config configs/llama3_8b/steer_random_boundary.yaml [--dry-run]
