@@ -19,6 +19,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 
+from ethos.steering.in_vllm import setting_label
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -50,7 +52,7 @@ def main():
     fig, ax = plt.subplots(figsize=(9, 5))
     ax.axvspan(steered[0] - 0.5, steered[-1] + 0.5, color="#f1eefa", zorder=0)
     for s, values in out.items():
-        ax.plot(captured, values, "o-", ms=4, lw=2, color="#2e6fac" if meta["settings"][s] > 0 else "#d1495b", label=s)
+        ax.plot(captured, values, "o-", ms=4, lw=2, color="#2e6fac" if meta["settings"][s] > 0 else "#d1495b", label=setting_label(s))
     ax.axhline(0, color="#bbb", lw=0.8)
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles + [Patch(color="#e4ddf5")], labels + [f"steered layers ({steered[0]}-{steered[-1]})"],
