@@ -10,6 +10,7 @@ Usage:
 """
 import argparse
 import json
+import textwrap
 from pathlib import Path
 
 import matplotlib
@@ -52,9 +53,12 @@ def main():
         return s.rsplit("@", 1)[0].removeprefix("not_")
     order = sorted(scores.columns, key=lambda s: (vector(s) if alpha(s) else "", alpha(s)))
     vectors = sorted({vector(s) for s in order if alpha(s)})          # several vectors (e.g. random_0..2): shades
-    blues, reds = ["#2e6fac", "#7fb3e0", "#163a5f"], ["#d1495b", "#f2a0a8", "#7a1c28"]
-    color = {s: "#555555" if alpha(s) == 0 else (blues if alpha(s) > 0 else reds)[vectors.index(vector(s)) % 3]
-             for s in order}
+    # one shade per line, light to dark: blues for +alpha, reds for -alpha (by vector, then strength)
+    color = {s: "#555555" for s in order if alpha(s) == 0}
+    for sign, cmap in ((1, plt.cm.Blues), (-1, plt.cm.Reds)):
+        lines = sorted((s for s in order if np.sign(alpha(s)) == sign), key=lambda s: (vector(s), abs(alpha(s))))
+        for s, shade in zip(lines, np.linspace(0.45, 0.95, len(lines)) if len(lines) > 1 else [0.7]):
+            color[s] = cmap(shade)
 
     steering = json.loads((data / "steering.json").read_text()) if (data / "steering.json").exists() else {}
     model = r.attrs.get("model") or Path(steering.get("vectors", "model")).name
@@ -92,8 +96,9 @@ def main():
             return f"{v}: α > 0 toward {v}, α < 0 away from it"
         return f"{v}: α > 0 toward {POLE_MEANINGS[v][0]}, α < 0 toward {POLE_MEANINGS[v][1]}"
     meaning = "; ".join(meaning(v) for v in vectors if not v.startswith("random_"))
+    steer_line = textwrap.fill(f"Steering: {meaning or ', '.join(vectors) + ' vector'}.", 150)
     fig.text(0.02, 0.935, f"Score = share of annotators (humans) or of the model's {n_answers} answers that said toxic. "
-             f"{len(scores)} comments ({args.sample.parent.name}).\nSteering: {meaning or ', '.join(vectors) + ' vector'}.\n"
+             f"{len(scores)} comments ({args.sample.parent.name}).\n{steer_line}\n"
              f"★ {y:.0%} of comments have a human score of {m:.2f} or lower.",
              fontsize=9, color="#555", va="top")
     fig.tight_layout(rect=(0, 0, 1, 0.90))

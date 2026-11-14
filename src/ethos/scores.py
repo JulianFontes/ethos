@@ -38,15 +38,35 @@ def score_table(ratings, sample):
     ratings: answers from scripts/experiments/profile_signal.py (id, condition, toxic); sample: its sample.csv.
     Columns: id, comment, moral_value ("none" = no value in the prompt; profiles keep their file name), weighting,
     llm_toxicity, human_toxicity, n_answers, consensus, consensus_bin.
+    Activation steering runs (no-value prompt, conditions "none|steer=<pole>@<alpha>"): moral_value is the pole the
+    vector pushes toward (e.g. "toxicity", "not_toxicity"; "none" unsteered) and weighting the alpha (0 unsteered).
     """
     scores = toxicity_score(ratings, by=["id", "condition"]).rename("llm_toxicity")
     n = ratings.groupby(["id", "condition"]).size().rename("n_answers")
     t = pd.concat([scores, n], axis=1).reset_index()
     split = t.condition.str.split("|", n=1, expand=True)
     t["moral_value"], t["weighting"] = split[0], split[1] if 1 in split else None
+    t = steering_columns(t)
     s = sample.set_index("id")
     t = t.join(s[["comment_text", "toxicity", "consensus", "consensus_bin"]], on="id")
     t = t.rename(columns={"comment_text": "comment", "toxicity": "human_toxicity"})
     cols = ["id", "comment", "moral_value", "weighting", "llm_toxicity", "human_toxicity", "n_answers", "consensus",
             "consensus_bin"]
     return t[cols].sort_values(["id", "moral_value", "weighting"], na_position="first", ignore_index=True)
+
+
+def steering_columns(t):
+    """For activation steering rows (moral_value "none", weighting "steer=<pole>@<alpha>"): moral_value = the pole,
+    weighting = alpha (a number); the unsteered rows of a steering table get weighting 0. Other tables are returned
+    unchanged. Also converts scores.csv files written before this format."""
+    w = t.weighting.astype("string")
+    steered = w.str.startswith("steer=", na=False)
+    if not steered.any():
+        return t
+    assert (t.moral_value[steered] == "none").all(), "steering with a value in the prompt: keep the old columns"
+    pole_alpha = w[steered].str.removeprefix("steer=").str.rsplit("@", n=1, expand=True)
+    t = t.copy()
+    t["weighting"] = pd.Series(0.0, index=t.index).where(~steered, pd.to_numeric(pole_alpha[1]))
+    t.loc[steered, "moral_value"] = pole_alpha[0]
+    assert t.weighting.notna().all() and (t.moral_value[~steered] == "none").all()
+    return t

@@ -144,13 +144,13 @@ def load_steering_scores(path, include_none=True):
     data/processed/civil-comments/boundary_n100_train/steer_toxicity_llama3_8b_l10-25/scores.csv) and return
     (rows, base) as load_scores does, so the same policy code can pick a steering strength per comment.
 
-    The options are the run's steering settings, named by their tag (e.g. "toxicity@+0.3", "not_toxicity@-0.3"), and
-    "none" for unsteered; they stay in the `moral_value` column, which the policy code keys on. include_none: whether
-    unsteered is also an option (default yes: leaving a comment unsteered is a natural choice)."""
-    scores = pd.read_csv(ROOT / path)
-    assert (scores.moral_value == "none").all(), "expected a steering run with the no-value prompt only (conditions: [none])"
-    steer = scores.weighting.fillna("").str.removeprefix("steer=")
-    scores = scores.assign(moral_value=steer.replace("", "none"))
+    In such a file moral_value is the pole (e.g. "toxicity", "not_toxicity"; "none" unsteered) and weighting the
+    alpha. Each option is named "<pole>@<alpha>" (e.g. "toxicity@+0.3"), or "none" for unsteered, and kept in the
+    `moral_value` column, which the policy code keys on. include_none: whether unsteered is also an option."""
+    from ethos.scores import steering_columns
+    scores = steering_columns(pd.read_csv(ROOT / path))       # also reads files in the old format
+    steered = scores.weighting != 0
+    scores["moral_value"] = scores.moral_value.where(~steered, scores.moral_value + "@" + scores.weighting.map("{:+g}".format))
     cols = ["id", "moral_value", "llm_toxicity", "human_toxicity", "consensus_bin"]
     scores = scores[cols].assign(distance=lambda d: (d.llm_toxicity - d.human_toxicity).abs())
     base = scores[scores.moral_value == "none"].set_index("id")
