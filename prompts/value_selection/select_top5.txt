@@ -1,0 +1,30 @@
+You are an expert in moral reasoning and content moderation.
+
+Your task is to identify which moral values are most relevant when deciding whether a comment should be allowed or removed.
+
+**Comment:**
+{comment}
+
+**Candidate moral values:**
+{values_31}
+
+**Instructions:**
+- Select the **5 most relevant moral values** from the provided list.
+- Consider values that support either allowing or removing the comment.
+- Select values based on their relevance to the decision, not whether the comment is toxic.
+- Do not introduce values outside the provided list.
+- Do not make the moderation decision.
+- Return only a JSON object.
+
+**Output format:**
+```json
+{
+  "values": [
+    "Value 1",
+    "Value 2",
+    "Value 3",
+    "Value 4",
+    "Value 5"
+  ]
+}
+```
