@@ -1,0 +1,13 @@
+# Config for scripts/data/extract_consensus_sample.py: 2,000 train comments (400 per consensus bin, 200 on each side of
+# 0.5), the full range of human agreement and both directions, for training and testing the steering-strength policy.
+
+source: data/processed/civil-comments/all_comments/comments.csv
+split: train          # tuning set; the test sample stays held out
+per_bin: 400         # comments drawn from each bin (2,000 total)
+balance_sides: true   # 200 per bin below 0.5 (humans lean not toxic) and 200 above (lean toxic)
+seed: 0               # random seed for a reproducible draw
+
+# Consensus = max(p, 1 - p): 0.5 = even split, 1 = unanimous. Bins are [lo, hi); the last bin includes 1.0.
+bin_edges: [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+
+output_dir: data/processed/civil-comments/consensus_n2000_train   # relative to the project root; gets sample.csv and config.yaml

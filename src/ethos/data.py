@@ -139,20 +139,26 @@ def load_scores(path, include_none=False):
     return rows, base
 
 
-def load_steering_scores(path, include_none=True):
+def load_steering_scores(path, include_none=True, complete_only=False):
     """Read an activation steering run's scores.csv (scripts/shell/submit_vllm.sh with a `steering:` section, e.g.
     data/processed/civil-comments/boundary_n100_train/steer_toxicity_llama3_8b_l10-25/scores.csv) and return
     (rows, base) as load_scores does, so the same policy code can pick a steering strength per comment.
 
     In such a file moral_value is the pole (e.g. "toxicity", "not_toxicity"; "none" unsteered) and weighting the
     alpha. Each option is named "<pole>@<alpha>" (e.g. "toxicity@+0.3"), or "none" for unsteered, and kept in the
-    `moral_value` column, which the policy code keys on. include_none: whether unsteered is also an option."""
+    `moral_value` column, which the policy code keys on. include_none: whether unsteered is also an option.
+    complete_only: keep only the options every comment with an unsteered row has (for a run still in progress)."""
     from ethos.scores import steering_columns
     scores = steering_columns(pd.read_csv(ROOT / path))       # also reads files in the old format
     steered = scores.weighting != 0
     scores["moral_value"] = scores.moral_value.where(~steered, scores.moral_value + "@" + scores.weighting.map("{:+g}".format))
     cols = ["id", "moral_value", "llm_toxicity", "human_toxicity", "consensus_bin"]
     scores = scores[cols].assign(distance=lambda d: (d.llm_toxicity - d.human_toxicity).abs())
+    if complete_only:
+        ids = set(scores.id[scores.moral_value == "none"])
+        scores = scores[scores.id.isin(ids)]
+        counts = scores.groupby("moral_value").id.nunique()
+        scores = scores[scores.moral_value.isin(counts[counts == len(ids)].index)]
     base = scores[scores.moral_value == "none"].set_index("id")
     rows = scores if include_none else scores[scores.moral_value != "none"]
     rows = rows.sort_values(["id", "moral_value"], ignore_index=True)

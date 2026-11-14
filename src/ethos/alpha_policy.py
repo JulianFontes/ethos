@@ -45,10 +45,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-def load(scores):
+def load(scores, complete_only=False):
     """(X, D, S, H, options): X (comments, 768) embeddings; per comment and alpha, D = |LLM score - human score| and
     S = the LLM toxicity score; H (comments,) human toxicity scores."""
-    rows, _ = load_steering_scores(scores)
+    rows, _ = load_steering_scores(scores, complete_only=complete_only)
     D = rows.pivot(index="id", columns="moral_value", values="distance")
     S = rows.pivot(index="id", columns="moral_value", values="llm_toxicity")
     H = rows.groupby("id").human_toxicity.first().loc[D.index]
@@ -268,6 +268,8 @@ def features(kind, X, S, options, train_idx):
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--scores", type=Path, required=True, help="an activation steering run's scores.csv")
+    p.add_argument("--complete-only", action="store_true",
+                   help="use only the strengths every comment has (to check a run while it is still in progress)")
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--folds", type=int, default=5, help="cross-validation folds")
     p.add_argument("--epochs", type=int, default=300)
@@ -281,7 +283,7 @@ def main():
     out = ROOT / args.out
     out.mkdir(parents=True, exist_ok=True)
 
-    X, D, S, H, options = load(args.scores)
+    X, D, S, H, options = load(args.scores, complete_only=args.complete_only)
     none = options.index("none")
     folds = list(KFold(args.folds, shuffle=True, random_state=args.seed).split(X))
     best_scores, best_errs, best_choice = torch.zeros(len(X)), [], []
