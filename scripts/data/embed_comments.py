@@ -1,4 +1,4 @@
-"""Sentence-BERT embeddings of every comment in data/processed/civil-comments/comments.
+"""Sentence-BERT embeddings of every comment in data/processed/civil-comments/all_comments.
 
 Reads comments.csv and writes embeddings/embeddings.parquet: one row per comment (index `id`), columns
 emb_0 ... emb_767 (all-mpnet-base-v2, unit length, float32). ethos.data.load_embeddings() reads it, and with a sample

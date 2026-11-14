@@ -95,7 +95,7 @@ def embed(texts, model_name=EMBEDDING_MODEL, batch_size=32):
     return pd.DataFrame(vectors, index=texts.index, columns=[f"emb_{i}" for i in range(vectors.shape[1])])
 
 def load_embeddings(sample_dir=None):
-    """Sentence-BERT embeddings indexed by comment id, from data/processed/civil-comments/comments/embeddings/embeddings.parquet (written by
+    """Sentence-BERT embeddings indexed by comment id, from data/processed/civil-comments/all_comments/embeddings/embeddings.parquet (written by
     scripts/data/embed_comments.py). With `sample_dir`, only that sample's comments, in sample.csv order."""
     from ethos.paths import COMMENTS, EMBEDDINGS
     path = EMBEDDINGS / "embeddings.parquet"
@@ -136,6 +136,40 @@ def load_scores(path, include_none=False):
     assert set(base.index) == set(rows.id), "every comment needs a no-value ('none') row"
     assert not rows.isna().any().any() and not base.isna().any().any(), "missing values in scores.csv"
     assert len(rows) == n_comments * n_options
+    return rows, base
+
+
+def load_steering_scores(path, include_none=True, complete_only=False):
+    """Read an activation steering run's scores.csv (scripts/shell/submit_vllm.sh with a `steering:` section, e.g.
+    data/processed/civil-comments/boundary_n100_train/steer_toxicity_llama3_8b_l10-25/scores.csv) and return
+    (rows, base) as load_scores does, so the same policy code can pick a steering strength per comment.
+
+    In such a file moral_value is the pole (e.g. "toxicity", "not_toxicity"; "none" unsteered) and weighting the
+    alpha. Each option is named "<pole>@<alpha>" (e.g. "toxicity@+0.3"), or "none" for unsteered, and kept in the
+    `moral_value` column, which the policy code keys on. include_none: whether unsteered is also an option.
+    complete_only: keep only the options every comment with an unsteered row has (for a run still in progress)."""
+    from ethos.scores import steering_columns
+    scores = steering_columns(pd.read_csv(ROOT / path))       # also reads files in the old format
+    steered = scores.weighting != 0
+    scores["moral_value"] = scores.moral_value.where(~steered, scores.moral_value + "@" + scores.weighting.map("{:+g}".format))
+    cols = ["id", "moral_value", "llm_toxicity", "human_toxicity", "consensus_bin"]
+    scores = scores[cols].assign(distance=lambda d: (d.llm_toxicity - d.human_toxicity).abs())
+    if complete_only:
+        ids = set(scores.id[scores.moral_value == "none"])
+        scores = scores[scores.id.isin(ids)]
+        counts = scores.groupby("moral_value").id.nunique()
+        scores = scores[scores.moral_value.isin(counts[counts == len(ids)].index)]
+    base = scores[scores.moral_value == "none"].set_index("id")
+    rows = scores if include_none else scores[scores.moral_value != "none"]
+    rows = rows.sort_values(["id", "moral_value"], ignore_index=True)
+
+    # fail loudly if the table is not what the policy expects
+    options = set(rows.moral_value)
+    per_comment = rows.groupby("id").moral_value.agg(set)
+    assert (per_comment == options).all(), f"not every comment has all options {sorted(options)}"
+    assert set(base.index) == set(rows.id), "every comment needs an unsteered ('none') row"
+    assert not rows.isna().any().any() and not base.isna().any().any(), "missing values in scores.csv"
+    assert len(rows) == rows.id.nunique() * len(options)
     return rows, base
 
 

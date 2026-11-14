@@ -7,7 +7,7 @@ Usage:
     python scripts/plots/plot_consensus.py                      # train and test
     python scripts/plots/plot_consensus.py --splits test
     python scripts/plots/plot_consensus.py --splits all         # train and test together
-    python scripts/plots/plot_consensus.py --data-dir data/processed/civil-comments/comments
+    python scripts/plots/plot_consensus.py --data-dir data/processed/civil-comments/all_comments
 """
 import argparse
 
@@ -20,7 +20,7 @@ from ethos.sources import write_sources
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--data-dir", default="data/processed/civil-comments/comments")
+    parser.add_argument("--data-dir", default="data/processed/civil-comments/all_comments")
     parser.add_argument("--splits", nargs="+", default=["train", "test"])
     parser.add_argument("--out", default=EXPERIMENTS / "dataset" / "consensus")
     parser.add_argument("--low", type=float, default=0.6, help="consensus at or below this is shaded as low")

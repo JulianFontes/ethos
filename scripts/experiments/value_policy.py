@@ -27,7 +27,7 @@ from pathlib import Path
 import pandas as pd
 from tqdm import tqdm
 
-from ethos.data import feature_matrix, load_embeddings, load_scores
+from ethos.data import feature_matrix, load_embeddings, load_scores, load_steering_scores
 from ethos.paths import EMBEDDINGS, EXPERIMENTS, ROOT, SINGLE_VALUES
 from ethos.plotting.policy import plot_depth_curves
 from ethos.policy import N_FOLDS, baselines, best_fixed_value, cv_splits, run_tree_cv
@@ -45,15 +45,20 @@ def main():
     p.add_argument("--out", type=Path, default=EXPERIMENTS / "04_value_policy" / "decision_tree")
     p.add_argument("--choose-none", action=argparse.BooleanOptionalAction, default=True,
                    help="let the policy also choose no value (61 options); --no-choose-none: only the 60 values")
+    p.add_argument("--steering", action="store_true",
+                   help="--scores is an activation steering run: the options are its steering strengths (and "
+                        "unsteered, as 'none'), e.g. pick -0.3 / unsteered / +0.3 per comment")
     args = p.parse_args()
     out = ROOT / args.out
 
     print("Loading data ...")
-    rows, base = load_scores(args.scores, include_none=args.choose_none)
+    load = load_steering_scores if args.steering else load_scores
+    rows, base = load(args.scores, include_none=args.choose_none)
     comment = load_embeddings()                      # all comments; feature_matrix picks the rows by id
     X = feature_matrix(rows, comment)
-    print(f"  {rows.id.nunique()} comments x {rows.moral_value.nunique()} options"
-          f"{' (60 values + none)' if args.choose_none else ' (values)'} = {len(rows):,} rows, "
+    options = (f" ({', '.join(sorted(rows.moral_value.unique()))})" if args.steering
+               else " (60 values + none)" if args.choose_none else " (values)")
+    print(f"  {rows.id.nunique()} comments x {rows.moral_value.nunique()} options{options} = {len(rows):,} rows, "
           f"{X.shape[1]} features ({comment.shape[1]} embedding + "
           f"{sum(c.startswith('value_') for c in X)} value)")
     splits = list(cv_splits(rows, n_repeats=args.repeats))

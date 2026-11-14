@@ -1,7 +1,9 @@
 """Draw an equal number of comments from each consensus bin (consensus = max(p, 1 - p)).
 
 Reads the combined dataset from scripts/data/extract_splits.py, keeps one split (test by default), bins comments by
-consensus and draws `per_bin` from each. Settings live in configs/data/sample_consensus_test.yaml; the logic lives in
+consensus and draws `per_bin` from each, optionally leaving out the comments of other samples (`exclude`: a list of
+sample.csv paths) and optionally balancing each bin's two sides (`balance_sides`: half the bin's comments with
+toxicity below 0.5, half above; comments at exactly 0.5 are left out). Settings live in configs/data/sample_consensus_test.yaml; the logic lives in
 ethos.data (bin_column, sample_per_bin).
 
 Writes to <output_dir>/:
@@ -38,11 +40,20 @@ def main():
 
     df = pd.read_csv(ROOT / cfg["source"])
     pool = df[df.split == cfg["split"]].assign(consensus_bin=lambda d: bin_column(d.consensus, edges))
+    for other in cfg.get("exclude", []):                     # leave out comments already in these samples
+        pool = pool[~pool.id.isin(pd.read_csv(ROOT / other, usecols=["id"]).id)]
     print(f"{cfg['split']} comments: {len(pool)}")
     for label, n in pool.consensus_bin.value_counts(sort=False).items():
         print(f"  {label:>8}: {n:>5} available, taking {cfg['per_bin']}")
+    if cfg.get("balance_sides"):                              # within each bin, half below and half above 0.5
+        pool = pool[pool.toxicity != 0.5]
+        side = (pool.toxicity > 0.5).map({False: "not toxic", True: "toxic"})
+        pool = pool.assign(stratum=pd.Categorical(pool.consensus_bin.astype(str) + " | " + side))
     try:
-        sample = sample_per_bin(pool, "consensus_bin", cfg["per_bin"], cfg["seed"])
+        if cfg.get("balance_sides"):
+            sample = sample_per_bin(pool, "stratum", cfg["per_bin"] // 2, cfg["seed"]).drop(columns="stratum")
+        else:
+            sample = sample_per_bin(pool, "consensus_bin", cfg["per_bin"], cfg["seed"])
     except ValueError as e:
         raise SystemExit(str(e))
 

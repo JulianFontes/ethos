@@ -1,0 +1,32 @@
+# Activation steering with toxicity on Meta-Llama-3-8B-Instruct at alpha +-0.45, on the same 500 human-boundary comments as
+# steer_toxicity_boundary_n500.yaml (alpha 0 / +-0.3): beyond the strengths that kept rationales coherent in the sweep (+-0.5 broke), to see
+# whether a stronger push helps the policy; check the rationales before trusting it. Alpha 0 is reused from that run.
+#   scripts/shell/submit_vllm.sh --config configs/llama3_8b/steer_toxicity_boundary_n500_a0.45.yaml [--dry-run]
+
+model: meta-llama/Meta-Llama-3-8B-Instruct  # Hugging Face id, served by vLLM (bf16, ~16 GB)
+sample: data/processed/civil-comments/boundary_n500_train/sample.csv
+data: data/processed/civil-comments/boundary_n500_train/steer_toxicity_llama3_8b_l10-25_a0.45
+
+# What to ask (see profile_signal.py)
+single_values: true
+conditions: [none]                         # only the no-value prompt: any change comes from the activation steering
+samples: 10                                # answers per comment and condition
+reasoning_effort: none                     # Llama 3 does not reason before answering
+workers: 64                                # requests in flight = vLLM --max-num-seqs
+checkpoint_every: 100
+max_tokens: 512                            # answers use ~60 (longest seen 556); stops calls stuck writing JSON whitespace
+
+# Activation steering: VISPA's layers and vectors; 0.3 is the strongest alpha that kept rationales coherent (alpha_sweep.yaml)
+steering:
+  vectors: data/processed/steering_vectors/Meta-Llama-3-8B-Instruct
+  layers: "10-25"
+  values: [toxicity]
+  alphas: [-0.45, 0.45]                   # past the coherent range (+-0.3); unsteered: the alpha 0.3 run
+
+# Cluster
+job_size: 250                              # comments per job: 2 jobs
+max_nodes: 2
+time: "03:00:00"
+partition: gpu_test
+account: protopapas_lab
+scratch: /n/netscratch/protopapas_lab/Lab/$USER

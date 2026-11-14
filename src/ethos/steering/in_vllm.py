@@ -39,6 +39,26 @@ def pole_name(value, alpha, steering):
     VISPA's toxicity / harmfulness values mean avoiding them, so "toxicity@+68.6" steers toward non-toxic posting."""
     return value if alpha > 0 else f"not_{value}"
 
+# What each pole of a vector means, for plot labels: (+alpha, -alpha), from the VISPA pairs (data/VISPA-values: "for"
+# sentences = +). VISPA's toxicity and harmfulness values are about avoiding them, so their + pole is the opposite of
+# what the tag name suggests: toxicity "for" = kind posting, "against" = drama and negativity; harmfulness "for" =
+# checking for and preventing harm, "against" = not bothering.
+POLE_MEANINGS = {"toxicity": ("non-toxic posting", "toxic posting"),
+                 "harmfulness": ("avoiding harm", "disregarding harm")}
+
+def setting_label(setting):
+    """A plot label for a steering setting: "toxicity@+0.3" -> "toward non-toxic posting (toxicity vector, α +0.3)";
+    "not_toxicity@-0.3" -> "toward toxic posting (toxicity vector, α -0.3)"; values without a known meaning (e.g.
+    random_0) -> "random_0 vector, α +0.3"; "unsteered" (or anything without "@") is returned as is."""
+    if "@" not in setting:
+        return setting
+    pole, alpha = setting.rsplit("@", 1)
+    value = pole.removeprefix("not_")
+    vector = f"{value} vector, α {float(alpha):+g}"
+    if value in POLE_MEANINGS:
+        return f"toward {POLE_MEANINGS[value][float(alpha) < 0]} ({vector})"
+    return vector
+
 def steering_alphas(steering):
     """The strengths a run uses: `alphas` as given, or `alpha_fractions` x the steered layers' mean hidden-state norm
     (meta.json `norms`, from fit_steering_vectors.py), to 3 significant figures. Fractions make strengths comparable

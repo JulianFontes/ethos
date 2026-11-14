@@ -1,0 +1,31 @@
+# Control for steer_toxicity_boundary.yaml: the same run with 3 random vectors in place of the toxicity vector (same
+# layers, length and alpha +-0.3). If they shift TOXIC as much, the toxicity effect is a generic push, not the value's.
+# Random vectors: python scripts/experiments/make_random_vectors.py --vectors data/processed/steering_vectors/Meta-Llama-3-8B-Instruct
+#   scripts/shell/submit_vllm.sh --config configs/llama3_8b/steer_random_boundary.yaml [--dry-run]
+
+model: meta-llama/Meta-Llama-3-8B-Instruct  # Hugging Face id, served by vLLM (bf16, ~16 GB)
+sample: data/processed/civil-comments/boundary_n100_train/sample.csv   # 100 comments with human toxicity closest to 0.5
+data: data/processed/civil-comments/boundary_n100_train/steer_random_llama3_8b_l10-25_a0.3
+
+# What to ask (see profile_signal.py)
+single_values: true
+conditions: [none]                         # only the no-value prompt: any change comes from the activation steering
+samples: 10                                # answers per comment and condition
+reasoning_effort: none                     # Llama 3 does not reason before answering
+workers: 64                                # requests in flight = vLLM --max-num-seqs
+checkpoint_every: 100
+max_tokens: 512                            # answers use ~60 (longest seen 556); stops calls stuck writing JSON whitespace
+
+steering:
+  vectors: data/processed/steering_vectors/Meta-Llama-3-8B-Instruct
+  layers: "10-25"
+  values: [random_0, random_1, random_2]   # random directions, length 1 per layer like the toxicity vector
+  alphas: [0, -0.3, 0.3]
+
+# Cluster
+job_size: 500                              # 100 comments: one job
+max_nodes: 1
+time: "02:00:00"
+partition: gpu_test
+account: protopapas_lab
+scratch: /n/netscratch/protopapas_lab/Lab/$USER

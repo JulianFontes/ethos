@@ -1,0 +1,35 @@
+# Activation steering with toxicity on Meta-Llama-3-8B-Instruct on 2,000 comments across the full range of human
+# agreement (consensus_n2000_train: 400 per consensus band, 200 on each side of 0.5), at 15 strengths every 0.05 from
+# -0.35 to +0.35: the data for the steering-strength policy beyond the boundary comments.
+#   scripts/shell/submit_vllm.sh --config configs/llama3_8b/steer_toxicity_consensus_n2000.yaml [--dry-run]
+# Strengths run in the order listed, coarse to fine, so that a run still in progress already covers the range:
+#   python -m ethos.alpha_policy --scores <data>/scores.csv --complete-only ...   (after profile_signal.py --merge)
+
+model: meta-llama/Meta-Llama-3-8B-Instruct  # Hugging Face id, served by vLLM (bf16, ~16 GB)
+sample: data/processed/civil-comments/consensus_n2000_train/sample.csv
+data: data/processed/civil-comments/consensus_n2000_train/steer_toxicity_llama3_8b_l10-25_grid
+
+# What to ask (see profile_signal.py)
+single_values: true
+conditions: [none]                         # only the no-value prompt: any change comes from the activation steering
+samples: 10                                # answers per comment and condition
+reasoning_effort: none                     # Llama 3 does not reason before answering
+workers: 64                                # requests in flight = vLLM --max-num-seqs
+checkpoint_every: 100
+max_tokens: 512                            # answers use ~60 (longest seen 556); stops calls stuck writing JSON whitespace
+
+# Activation steering: VISPA's layers and vectors; +-0.35 is the strongest alpha that kept rationales coherent
+# (boundary_n500_train: +0.45 made up "respectful" readings)
+steering:
+  vectors: data/processed/steering_vectors/Meta-Llama-3-8B-Instruct
+  layers: "10-25"
+  values: [toxicity]
+  alphas: [0, -0.35, 0.35, -0.2, 0.2, -0.1, 0.1, -0.3, 0.3, -0.15, 0.15, -0.05, 0.05, -0.25, 0.25]
+
+# Cluster
+job_size: 1000                             # comments per job: 2 jobs (gpu_test lets 2 of your jobs queue at once)
+max_nodes: 2
+time: "12:00:00"                           # ~2.7 h expected (150,000 answers per job at ~16/s); requeued if it runs out
+partition: gpu_test
+account: protopapas_lab
+scratch: /n/netscratch/protopapas_lab/Lab/$USER
