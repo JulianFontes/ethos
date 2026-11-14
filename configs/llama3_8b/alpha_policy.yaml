@@ -1,0 +1,11 @@
+# Steering-strength policy (src/ethos/alpha_policy.py) on a finished steering run.
+#   scripts/shell/run_alpha_policy.sh                     (or: CONFIG=<this file> scripts/shell/run_alpha_policy.sh)
+
+run: data/processed/civil-comments/consensus_n2000_train/steer_toxicity_llama3_8b_l10-25_grid   # scores.csv (+ rationale_embeddings.parquet)
+out: data/experiments/civil-comments/05_activation_steering/alpha_policy_llama3_8b_consensus_n2000_bell
+
+model: bell        # bell: probabilities shaped as a bell curve over the ordered alphas; softmax: one score per alpha
+features: [text, prior, text+prior, rationale+prior, text+rationale+prior]   # one policy per entry
+folds: 5           # cross-validation folds
+epochs: 300
+seed: 0
