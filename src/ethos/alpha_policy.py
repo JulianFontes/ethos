@@ -1,12 +1,13 @@
-"""Steering-strength policy: for one value vector, learn which alpha to steer each comment with so that the LLM's
-toxicity score lands closest to the human score.
+"""Steering policy: learn which strength (alpha), and with several value vectors which value, to steer each comment
+with so that the LLM's toxicity score lands closest to the human score.
 
 Data: a steering run's scores.csv (LLM score per comment and alpha; ethos.data.load_steering_scores), the comment
 embeddings, and optionally <run>/rationale_embeddings.parquet (scripts/experiments/embed_rationales.py).
 
 Model: one linear layer and a softmax over the alphas, trained on the expected distance
 sum_alpha p(alpha) * |LLM score at alpha - human score|. "bell" turns the layer's two outputs (a centre and a width) into
-a bell curve over the ordered alphas; "softmax" gives every alpha its own score.
+a bell curve over the ordered alphas; "softmax" gives every option its own score; "multibell" (a run with several
+values) picks a value and a strength: pi(v, alpha | x) = P(v | x) P(alpha | v, x), one bell curve per value.
 
 Inputs (features): "text" (comment embedding), "prior" (the LLM's score at alpha 0), "rationale" (its unsteered
 rationales, embedded), joined with "+". "prior" and "rationale" come from the answers that also score alpha 0, so they
@@ -16,6 +17,7 @@ Plots: ethos.plotting.alpha_policy. Run: scripts/experiments/alpha_policy.py (sc
 """
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import torch
 from sklearn.model_selection import KFold
@@ -94,16 +96,59 @@ class BellPolicy(torch.nn.Module):
         return -(self.alphas - mu) ** 2 / (2 * sigma ** 2)
 
 
+def option_value(option):
+    """The value vector an option steers with ("toxicity@+0.3" / "not_toxicity@-0.3" -> "toxicity"; "none" -> None)."""
+    return None if option == "none" else option.rsplit("@", 1)[0].removeprefix("not_")
+
+class MultiBellPolicy(torch.nn.Module):
+    """Joint policy over value vectors and strengths: pi(v, alpha | x) = P(v | x) * P(alpha | v, x). One linear layer
+    gives each comment a score per value (softmax: P(v | x)) and, per value, a centre mu_v and width sigma_v of a bell
+    curve over that value's strengths (alpha 0 included): P(alpha | v, x), as in BellPolicy. Unsteered ("none") is alpha
+    0 of every value, so P(none | x) = sum_v P(v | x) P(0 | v, x). forward returns log pi for each option, in `options`
+    order, so the loss, the picks and the plots treat it like any other policy over the options."""
+    def __init__(self, n_inputs, options):
+        super().__init__()
+        self.values = list(dict.fromkeys(v for v in map(option_value, options) if v))
+        grid = sorted({0.0, *(a for o, a in zip(options, alpha_values(options)) if o != "none")})
+        cells = {(option_value(o), a): o for o, a in zip(options, alpha_values(options)) if o != "none"}
+        missing = [(v, a) for v in self.values for a in grid if a and (v, a) not in cells]
+        assert not missing, f"every value needs every strength; missing {missing[:5]}"
+        self.linear = torch.nn.Linear(n_inputs, 3 * len(self.values))       # value scores, mu's, sigma's
+        self.register_buffer("alphas", torch.tensor(grid, dtype=torch.float32))
+        # each option's cell in the flattened (values, alphas) grid; "none" -> the alpha-0 cell of every value
+        flat = lambda v, a: self.values.index(v) * len(grid) + grid.index(a)
+        self.cells = [[flat(v, 0.0) for v in self.values] if o == "none" else [flat(option_value(o), a)]
+                      for o, a in zip(options, alpha_values(options))]
+
+    def centre_width(self, X):
+        """(value scores, mu, sigma), each (comments, values)."""
+        v, m, s = self.linear(X).split(len(self.values), dim=1)
+        return v, self.alphas.abs().max() * torch.tanh(m), torch.nn.functional.softplus(s) + 0.02
+
+    def forward(self, X):
+        v, mu, sigma = self.centre_width(X)
+        log_p_value = torch.log_softmax(v, dim=1)                                           # (comments, values)
+        log_p_alpha = torch.log_softmax(-(self.alphas - mu[..., None]) ** 2 / (2 * sigma[..., None] ** 2), dim=2)
+        log_pi = (log_p_value[..., None] + log_p_alpha).flatten(1)                          # (comments, values*alphas)
+        return torch.stack([torch.logsumexp(log_pi[:, c], dim=1) for c in self.cells], dim=1)   # (comments, options)
+
+
 def train(X_train, D_train, X_val, D_val, epochs=300, lr=1e-2, weight_decay=1e-3, seed=0, progress=True,
-          model="softmax", alphas=None):
+          model="softmax", options=None):
     """(policy, history, picks): a policy trained with Adam on the expected distance: model "softmax" (one linear score
-    per alpha) or "bell" (BellPolicy; needs alphas). history has one row per epoch: the train and validation loss
-    (expected), and the validation error using the policy's top alpha per comment; picks[epoch - 1] are those top
-    alphas (indices) for the validation comments."""
+    per option), "bell" (BellPolicy: one value's strengths) or "multibell" (MultiBellPolicy: a value and a strength);
+    bell and multibell need the options. history has one row per epoch: the train and validation loss (expected), and
+    the validation error using the policy's top option per comment; picks[epoch - 1] are those top options (indices)
+    for the validation comments."""
     torch.manual_seed(seed)
     torch.set_num_threads(1)              # a model this small trains ~100x faster on one thread than on a shared node's 32
-    policy = (BellPolicy(X_train.shape[1], alphas) if model == "bell"
-              else torch.nn.Linear(X_train.shape[1], D_train.shape[1]))
+    if model == "bell":
+        assert len({option_value(o) for o in options} - {None}) == 1, "bell: one value; use multibell for several"
+        policy = BellPolicy(X_train.shape[1], alpha_values(options))
+    elif model == "multibell":
+        policy = MultiBellPolicy(X_train.shape[1], options)
+    else:
+        policy = torch.nn.Linear(X_train.shape[1], D_train.shape[1])
     opt = torch.optim.Adam(policy.parameters(), lr=lr, weight_decay=weight_decay)
     history, picks = [], []
     for epoch in trange(1, epochs + 1, desc="training", unit="epoch", disable=not progress, leave=False):
@@ -143,7 +188,7 @@ def cross_validate(X, D, S, options, methods, R=None, model="bell", folds=5, epo
                 tr, va = torch.tensor(tr), torch.tensor(va)
                 F = features(method, X, S, options, tr, R)
                 _, history, picks = train(F[tr], D[tr], F[va], D[va], epochs=epochs, seed=seed, progress=False,
-                                          model=model, alphas=alpha_values(options))
+                                          model=model, options=options)
                 histories.append(history.assign(fold=f))
                 oof[:, va] = torch.stack(picks)
                 bar.update()
@@ -151,12 +196,20 @@ def cross_validate(X, D, S, options, methods, R=None, model="bell", folds=5, epo
     return results, best
 
 
+def paired_difference(a, b, n_boot=2000, seed=0):
+    """(mean, 2.5th, 97.5th percentile) of a - b, two policies' errors on the same comments, with a bootstrap over
+    comments."""
+    d = np.asarray(a) - np.asarray(b)
+    boot = d[np.random.default_rng(seed).integers(0, len(d), (n_boot, len(d)))].mean(axis=1)
+    return d.mean(), np.percentile(boot, 2.5), np.percentile(boot, 97.5)
+
+
 def prior_curve(X, D, S, options, epochs=300, seed=0, points=201):
     """The bell prior-score policy fitted on all comments, as a curve: (grid of prior scores 0..1, mu, sigma) as numpy
     arrays: the alpha it aims for at each prior score, and how widely it spreads probability around it."""
     prior = S[:, options.index("none")]
     F = features("prior", X, S, options, torch.arange(len(X)))
-    policy, _, _ = train(F, D, F, D, epochs=epochs, seed=seed, progress=False, model="bell", alphas=alpha_values(options))
+    policy, _, _ = train(F, D, F, D, epochs=epochs, seed=seed, progress=False, model="bell", options=options)
     grid = torch.linspace(0, 1, points)
     with torch.no_grad():
         mu, sigma = policy.centre_width(((grid - prior.mean()) / (prior.std() + 1e-8))[:, None])

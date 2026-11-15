@@ -1,6 +1,6 @@
 """Plots for the steering-strength policy (ethos.alpha_policy), drawn from its cross-validation results.
 
-results: {method: (history, oof)} from ethos.alpha_policy.cross_validate; oof[-1] are each comment's picks at the last
+results: {method: (history, oof)} from ethos.alpha_policy.cross_validate (labels and colours: style); oof[-1] are each comment's picks at the last
 epoch, from the fold that held it out. S, D, H: the LLM scores, distances and human scores from ethos.alpha_policy.load.
 """
 import matplotlib
@@ -17,6 +17,17 @@ METHODS = {"text": ("comment embedding", "#d1495b"), "prior": ("prior score", "#
            "text+rationale+prior": ("comment + rationale embeddings + prior score", "#e377c2")}
 
 
+def style(key):
+    """(label, colour) of a policy in `results`: a features entry (METHODS), or "<value> only: <features>" for the
+    single-value baseline (scripts/experiments/alpha_policy.py, `baseline:`), in a lighter shade of the same colour."""
+    if " only: " not in key:
+        return METHODS[key]
+    value, method = key.split(" only: ")
+    name, color = METHODS[method]
+    light = matplotlib.colors.to_hex([c + (1 - c) * 0.5 for c in matplotlib.colors.to_rgb(color)])
+    return f"{name} ({value} only)", light
+
+
 def ecdf(ax, values, **kw):
     x = np.sort(np.asarray(values, dtype=float))
     ax.step(np.r_[0, x, 1], np.r_[0, np.arange(1, len(x) + 1) / len(x), 1], where="post", **kw)
@@ -30,8 +41,8 @@ def plot_loss(results, S, H, constants, path, title):
     constants: {"none" / "best": (validation error, scores of all comments, name, color, linestyle)}."""
     fig, (ax, cx) = plt.subplots(1, 2, figsize=(17, 6.5))
     lows = []
-    for method, (history, oof) in results.items():
-        name, color = METHODS[method]
+    for i, (method, (history, oof)) in enumerate(results.items()):
+        name, color = style(method)
         g = history.drop(columns="fold").groupby("epoch")
         mean, sd = g.mean(), g.std().fillna(0)
         v = mean["validation, top alpha"]
@@ -41,7 +52,7 @@ def plot_loss(results, S, H, constants, path, title):
         ax.plot(mean.index, mean.train, color=color, lw=0.8, ls="--", alpha=0.45)
         top = v.idxmin()
         ax.plot([top], [v[top]], "*", ms=18, color=color, mec="white", mew=1, zorder=6)
-        ax.annotate(f"{v[top]:.3f} (epoch {top})", (top, v[top]), xytext=(8, -14), textcoords="offset points",
+        ax.annotate(f"{v[top]:.3f} (epoch {top})", (top, v[top]), xytext=(8, -14 - 13 * i), textcoords="offset points",
                     fontsize=9, color=color, fontweight="bold")
         lows += (v - sd["validation, top alpha"]).tolist() + mean.train.tolist()
         ecdf(cx, S.gather(1, oof[-1][:, None]).squeeze(1), color=color, lw=2.2, label=f"policy: {name}")
@@ -68,7 +79,8 @@ def plot_loss(results, S, H, constants, path, title):
             t.set_fontweight("bold")
         a.grid(color="#e6e6e6"); a.set_axisbelow(True)
         a.spines[["top", "right"]].set_visible(False)
-        a.legend(frameon=False, fontsize=9, loc="upper left", bbox_to_anchor=(0, -0.1), ncol=2)
+        long = max(len(label) for label in a.get_legend_handles_labels()[1]) > 55     # long labels: one column
+        a.legend(frameon=False, fontsize=9, loc="upper left", bbox_to_anchor=(0, -0.1), ncol=1 if long else 2)
     fig.suptitle(title, x=0.02, ha="left", fontsize=13, fontweight="bold")
     fig.tight_layout(rect=(0, 0, 1, 0.95))
     fig.savefig(path, dpi=150)
@@ -80,7 +92,7 @@ def plot_toxic_share(results, S, H, none, path, title):
     each policy (share of the LLM's answers that said TOXIC, every comment run at the alpha its own fold's policy picks
     at the last epoch)."""
     bars = [("Humans", H.mean().item(), "#7a6fb0"), ("Unsteered\n(α 0)", S[:, none].mean().item(), "#555")]
-    bars += [(f"Policy:\n{METHODS[m][0]}", S.gather(1, oof[-1][:, None]).mean().item(), METHODS[m][1])
+    bars += [(f"Policy:\n{style(m)[0]}", S.gather(1, oof[-1][:, None]).mean().item(), style(m)[1])
              for m, (_, oof) in results.items()]
     fig, ax = plt.subplots(figsize=(2.3 * len(bars) + 1, 6))
     x = np.arange(len(bars))
@@ -110,7 +122,7 @@ def plot_toxic_share_by_band(results, S, H, none, bands, path, title):
     """toxic_share.png split by consensus band, in one plot: per band, stacked toxic / not toxic bars for humans, the
     LLM unsteered and each policy (picks as in plot_toxic_share). bands: each comment's consensus bin (same order)."""
     bars = [("Humans", H.numpy(), "#7a6fb0"), ("Unsteered (α 0)", S[:, none].numpy(), "#555")]
-    bars += [(f"Policy: {METHODS[m][0]}", S.gather(1, oof[-1][:, None]).squeeze(1).numpy(), METHODS[m][1])
+    bars += [(f"Policy: {style(m)[0]}", S.gather(1, oof[-1][:, None]).squeeze(1).numpy(), style(m)[1])
              for m, (_, oof) in results.items()]
     bands = np.asarray(bands)
     labels = sorted(set(bands), key=lambda b: float(b.split("-")[0]))
@@ -148,7 +160,7 @@ def plot_error_by_band(results, D, none, bands, path, title, n_boot=2000, seed=0
     """Average |LLM - human| per consensus band, with 95% bootstrap intervals (resampling comments): the LLM unsteered
     and each policy (every comment at the alpha its own fold's policy picks, last epoch)."""
     lines = [("Unsteered (α 0)", D[:, none].numpy(), "#555")]
-    lines += [(f"Policy: {METHODS[m][0]}", D.gather(1, oof[-1][:, None]).squeeze(1).numpy(), METHODS[m][1])
+    lines += [(f"Policy: {style(m)[0]}", D.gather(1, oof[-1][:, None]).squeeze(1).numpy(), style(m)[1])
               for m, (_, oof) in results.items()]
     bands = np.asarray(bands)
     labels = sorted(set(bands), key=lambda b: float(b.split("-")[0]))

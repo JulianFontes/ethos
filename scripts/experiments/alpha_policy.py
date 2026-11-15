@@ -1,5 +1,7 @@
 """Train and evaluate the steering-strength policy (ethos.alpha_policy) with k-fold cross-validation, one policy per
-input set. Every setting is in the config: run, out, model (bell / softmax), features, folds, epochs, seed.
+input set. Every setting is in the config: run, out, model (bell / softmax / multibell), features, folds, epochs, seed,
+and optionally baseline: a value (e.g. toxicity) whose options alone also train a bell policy per features entry, on
+the same folds, drawn next to the main policies and compared with them comment by comment.
 
 Writes to `out`:
   history.csv               train / validation error per policy, fold and epoch
@@ -16,13 +18,15 @@ import argparse
 from pathlib import Path
 
 import pandas as pd
+import torch
 import yaml
 
-from ethos.alpha_policy import cross_validate, load, prior_curve, rationale_embeddings
+from ethos.alpha_policy import (cross_validate, load, option_value, paired_difference, prior_curve,
+                                rationale_embeddings)
 from ethos.data import load_steering_scores
 from ethos.paths import ROOT
 from ethos.plotting.alpha_policy import (METHODS, plot_error_by_band, plot_loss, plot_policy_curve, plot_toxic_share,
-                                         plot_toxic_share_by_band)
+                                         plot_toxic_share_by_band, style)
 
 
 def main():
@@ -45,11 +49,20 @@ def main():
     none = options.index("none")
 
     results, best = cross_validate(X, D, S, options, methods, R, model=model, folds=folds, epochs=epochs, seed=seed)
+    baseline = cfg.get("baseline")
+    if baseline:                       # the single-value bell policy on the same comments, folds and features
+        cols = [i for i, o in enumerate(options) if option_value(o) in (None, baseline)]
+        base, _ = cross_validate(X, D[:, cols], S[:, cols], [options[i] for i in cols], methods, R, model="bell",
+                                 folds=folds, epochs=epochs, seed=seed)
+        cols = torch.tensor(cols)      # its picks index its own options: map them to the run's
+        results |= {f"{baseline} only: {m}": (h, cols[oof]) for m, (h, oof) in base.items()}
     pd.concat([h.assign(method=m) for m, (h, _) in results.items()], ignore_index=True).to_csv(out / "history.csv",
                                                                                                 index=False)
 
     chosen = pd.Series(best["choice"]).value_counts()
-    label = lambda o: "0 (no steering)" if o == "none" else o.rsplit("@", 1)[1]
+    several = len({option_value(o) for o in options} - {None}) > 1     # then name the value too
+    label = lambda o: ("0 (no steering)" if o == "none" else
+                       f"{option_value(o)} {o.rsplit('@', 1)[1]}" if several else o.rsplit("@", 1)[1])
     best_name = "best constant α " + (label(chosen.index[0]) if len(chosen) == 1 else
                                        " / ".join(f"{label(o)} ({n} folds)" for o, n in chosen.items()))
     constants = {"none": (D[:, none].mean().item(), S[:, none], "α 0 (no steering)", "#555", "-"),
@@ -72,7 +85,15 @@ def main():
           f"alpha 0: {D[:, none].mean().item():.4f}")
     for method, (history, _) in results.items():
         v = history.groupby("epoch")["validation, top alpha"].mean()
-        print(f"  {METHODS[method][0]:46s} final {v.iloc[-1]:.4f}   lowest {v.min():.4f} at epoch {v.idxmin()}")
+        print(f"  {style(method)[0]:62s} final {v.iloc[-1]:.4f}   lowest {v.min():.4f} at epoch {v.idxmin()}")
+    if baseline:
+        err = lambda oof: D.gather(1, oof[-1][:, None]).squeeze(1).numpy()
+        print(f"{model} minus {baseline} only, per comment (95% bootstrap interval; < 0: {model} closer to humans):")
+        for m in methods:
+            d, lo, hi = paired_difference(err(results[m][1]), err(results[f"{baseline} only: {m}"][1]))
+            picks = pd.Series([option_value(options[i]) or "none" for i in results[m][1][-1]]).value_counts(normalize=True)
+            print(f"  {METHODS[m][0]:46s} {d:+.4f} [{lo:+.4f}, {hi:+.4f}]   picks: "
+                  + ", ".join(f"{v} {p:.0%}" for v, p in picks.items()))
     print(f"wrote {cfg['out']}/: history.csv, loss.png, toxic_share.png, toxic_share_by_band.png, error_by_band.png"
           + (", policy_curve.png" if curve else ""))
 
