@@ -1,0 +1,63 @@
+# One-line definition per taxonomy value (prompts/taxonomy-values.txt), used to embed the values.
+# Written for this project (the taxonomy itself has no definitions): edit freely, then re-run
+# scripts/value_banks/build_similarity_bank.py. Keep the style parallel; embeddings pick up on wording.
+Aesthetics: Appreciating beauty, taste, and the visual or sensory quality of things.
+Animal Welfare: Caring about the well-being and humane treatment of animals.
+Appreciation: Recognizing and showing gratitude for people's efforts and contributions.
+Artistic Integrity: Keeping creative work true to the creator's own vision.
+Autonomy: Making one's own choices and controlling one's own life.
+Belonging: Feeling accepted as part of a group or community.
+Care: Attending to other people's needs and looking after their well-being.
+Child Welfare: Protecting children's safety, health, and development.
+Comfort: Physical and emotional ease, free from distress.
+Communication: Open, clear, and honest exchange between people.
+Compassion: Sympathy for other people's suffering and a wish to relieve it.
+Community: Shared life and mutual support among a group of people.
+Conformity: Following social norms, rules, and other people's expectations.
+Consideration: Taking other people's feelings and circumstances into account when acting.
+Convenience: Ease and practicality; avoiding unnecessary effort or hassle.
+Creativity: Imagination and originality in making things or solving problems.
+Cultural Respect: Honoring other people's cultures, customs, and heritage.
+Curiosity: A desire to learn, explore, and understand.
+Discipline: Self-control and sticking to rules, routines, and commitments.
+Efficiency: Achieving goals with minimal waste of time, effort, or resources.
+Emotional Intelligence: Understanding and handling one's own and other people's emotions.
+Enjoyment: Taking pleasure and fun in activities and experiences.
+Ethics: Acting on moral principles of right and wrong.
+Family: Valuing close kin bonds and obligations to family members.
+Forgiveness: Letting go of resentment and pardoning wrongdoing.
+Freedom: Liberty to act and speak as one wishes, without coercion.
+Friendship: Valuing close, trusting, mutually supportive bonds between friends.
+Happiness: Overall joy and contentment in life.
+Harmony: Peaceful, cooperative relations without conflict.
+Honesty: Telling the truth and not deceiving others.
+Inclusivity: Making sure everyone is welcomed and included, especially people often left out.
+Individualism: Putting the individual's own goals, identity, and independence ahead of the group.
+Integrity: Acting consistently with one's principles; being principled and trustworthy.
+Justice: Fairness, giving people what they deserve, and accountability for wrongs.
+Knowledge: Valuing learning, information, and understanding.
+Loyalty: Staying faithful and committed to people or groups, especially in hard times.
+Marital Respect: Honoring the commitments and trust within a marriage or partnership.
+Nonviolence: Avoiding physical harm and resolving conflict without violence.
+Nurturing: Caring for and raising dependents, especially children, so they can grow up safe and well.
+Parental Responsibility: A parent's duty to raise, protect, and provide for their children.
+Pragmatism: Choosing practical, workable solutions over idealism.
+Privacy: Keeping personal information and personal space free from intrusion.
+Property: Respecting ownership and people's right to their belongings.
+Punctuality: Being on time and keeping to agreed schedules.
+Resilience: Bouncing back from setbacks and persevering through hardship.
+Respect: Treating people with dignity and esteem.
+Respect for Time: Not wasting other people's time and valuing their schedule.
+Responsibility: Owning one's duties and accepting accountability for one's actions.
+Safety: Protection from harm, danger, and risk.
+Self-Actualization: Pursuing one's full potential and personal growth.
+Self-Reliance: Depending on oneself rather than on others.
+Sensitivity: Being attuned and gentle toward other people's feelings and vulnerabilities.
+Solidarity: Standing together with others, especially in support of shared causes or disadvantaged people.
+Stability: Steadiness and predictability in life, relationships, and circumstances.
+Sustainability: Meeting present needs without harming the future or the environment.
+Thoughtfulness: Showing attention to other people's needs through small, considerate acts.
+Tradition: Preserving customs and practices handed down over time.
+Tranquility: Calm and peace of mind.
+Welfare: Making sure people's basic material and social needs are met.
+Well-being: Overall physical and mental health.
