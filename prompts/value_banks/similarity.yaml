@@ -1,0 +1,145 @@
+backend: sbert
+model: default
+linkage: average (cosine distance)
+k: 26
+mean_silhouette: 0.1214
+note: 'Hand-editable: SimilarityBank.load() reads the clusters below, not the matrix.'
+clusters:
+- id: 1
+  label: Justice
+  values:
+  - Ethics
+  - Freedom
+  - Justice
+  - Property
+  - Responsibility
+- id: 2
+  label: Consideration
+  values:
+  - Compassion
+  - Consideration
+  - Emotional Intelligence
+  - Sensitivity
+  - Thoughtfulness
+- id: 3
+  label: Happiness
+  values:
+  - Enjoyment
+  - Happiness
+  - Self-Actualization
+  - Well-being
+- id: 4
+  label: Community
+  values:
+  - Belonging
+  - Community
+  - Inclusivity
+  - Solidarity
+- id: 5
+  label: Punctuality
+  values:
+  - Conformity
+  - Discipline
+  - Punctuality
+  - Respect for Time
+- id: 6
+  label: Cultural Respect
+  values:
+  - Cultural Respect
+  - Marital Respect
+  - Respect
+  - Tradition
+- id: 7
+  label: Curiosity
+  values:
+  - Creativity
+  - Curiosity
+  - Knowledge
+- id: 8
+  label: Self-Reliance
+  values:
+  - Autonomy
+  - Individualism
+  - Self-Reliance
+- id: 9
+  label: Care
+  values:
+  - Animal Welfare
+  - Care
+  - Nurturing
+- id: 10
+  label: Efficiency
+  values:
+  - Convenience
+  - Efficiency
+- id: 11
+  label: Welfare
+  values:
+  - Child Welfare
+  - Welfare
+- id: 12
+  label: Comfort
+  values:
+  - Comfort
+  - Tranquility
+- id: 13
+  label: Harmony
+  values:
+  - Harmony
+  - Nonviolence
+- id: 14
+  label: Stability
+  values:
+  - Resilience
+  - Stability
+- id: 15
+  label: Family
+  values:
+  - Family
+  - Friendship
+- id: 16
+  label: Communication
+  values:
+  - Communication
+  - Honesty
+- id: 17
+  label: Integrity
+  values:
+  - Integrity
+  - Loyalty
+- id: 18
+  label: Parental Responsibility
+  values:
+  - Parental Responsibility
+- id: 19
+  label: Aesthetics
+  values:
+  - Aesthetics
+- id: 20
+  label: Artistic Integrity
+  values:
+  - Artistic Integrity
+- id: 21
+  label: Pragmatism
+  values:
+  - Pragmatism
+- id: 22
+  label: Sustainability
+  values:
+  - Sustainability
+- id: 23
+  label: Privacy
+  values:
+  - Privacy
+- id: 24
+  label: Safety
+  values:
+  - Safety
+- id: 25
+  label: Appreciation
+  values:
+  - Appreciation
+- id: 26
+  label: Forgiveness
+  values:
+  - Forgiveness
