@@ -1,0 +1,46 @@
+# Screen of the other 26 VISPA values (all but toxicity, harmfulness, fairness, universalism, individualism, which have
+# full grids) as steering vectors on Meta-Llama-3-8B-Instruct: does any steer Llama differently enough from toxicity to
+# help a policy? 100 comments of consensus_n2000_train (20 per consensus band, 10 on each side of 0.5, seed 0), at
+# toxicity's coarse strengths plus unsteered. steer_5values_llama3_8b_l10-25_grid has the other 5
+# values at these strengths for the same comments. (1 + 26 x 4) settings x 100 comments x 10 answers.
+#   scripts/shell/submit_vllm.sh --config configs/llama3_8b/screen_values.yaml [--dry-run]
+
+model: meta-llama/Meta-Llama-3-8B-Instruct
+sample: data/processed/civil-comments/consensus_n2000_train/sample.csv
+data: data/processed/civil-comments/consensus_n2000_train/screen_values_llama3_8b_l10-25
+ids: [251370, 284912, 288143, 341540, 343150, 375017, 394475, 406174, 443764, 455776, 463603, 469455, 485891, 
+      498905, 570926, 588131, 595285, 613129, 621355, 623196, 643038, 663991, 741572, 848916, 917298, 971348, 
+      979021, 984299, 997759, 1004174, 1029457, 4987716, 4990415, 4995862, 5017560, 5029951, 5046918, 5049150, 
+      5062304, 5088598, 5088604, 5106836, 5122853, 5135573, 5161893, 5167726, 5169975, 5171710, 5183639, 5194449, 
+      5194553, 5229612, 5320558, 5344865, 5379518, 5421592, 5476736, 5505439, 5526204, 5566047, 5602240, 5604113, 
+      5604492, 5630852, 5644649, 5697312, 5708941, 5711041, 5714066, 5733338, 5735158, 5740508, 5748474, 5752091, 
+      5774757, 5775305, 5799221, 5802508, 5832505, 5836654, 5837923, 5848983, 5856405, 5858266, 5866682, 5902606, 
+      5903912, 5964883, 5993739, 5998160, 6084911, 6102241, 6128945, 6133831, 6140783, 6140860, 6190240, 6268664, 
+      6315313, 6326563]
+
+# What to ask (see profile_signal.py)
+single_values: true
+conditions: [none]                         # only the no-value prompt: any change comes from the activation steering
+samples: 10                                # answers per comment and condition
+reasoning_effort: none                     # Llama 3 does not reason before answering
+workers: 64                                # requests in flight = vLLM --max-num-seqs
+checkpoint_every: 100
+max_tokens: 512                            # answers use ~60 (longest seen 556); stops calls stuck writing JSON whitespace
+
+# Activation steering: toxicity's coarse strengths (+-0.35 kept toxicity, universalism and individualism coherent)
+steering:
+  vectors: data/processed/steering_vectors/Meta-Llama-3-8B-Instruct
+  layers: "10-25"
+  values: [achievement, benevolence, commonsense_morality, conformity, confucianism, deontology, face, hedonism, honor,
+           indulgence, justice, karma, long_term_orientation, masculinity, power, power_distance, security,
+           self-direction, spiritual, stimulation, tradition, truthfulness, ubuntu, uncertainty_avoidance,
+           utilitarianism, virtue_ethics]
+  alphas: [0, -0.35, 0.35, -0.2, 0.2]       # 0 first: a single-job run analyses each setting against the unsteered one
+
+# Cluster
+job_size: 100                              # 1 job
+max_nodes: 1
+time: "06:00:00"                           # ~2 h expected (104,000 answers at ~16/s); requeued if it runs out
+partition: gpu_test
+account: protopapas_lab
+scratch: /n/netscratch/protopapas_lab/Lab/$USER

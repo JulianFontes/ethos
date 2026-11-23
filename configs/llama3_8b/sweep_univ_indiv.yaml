@@ -1,0 +1,38 @@
+# Strength sweep for universalism and individualism (GPT's most-picked Basic Human Value and Cultural Dimension; their
+# steering vectors are nearly unrelated to each other (cosine 0.14) and less like toxicity than harmfulness and fairness:
+# notebooks/07_value_selection.ipynb) on Meta-Llama-3-8B-Instruct: at which strengths does each keep the rationales coherent,
+# and does it move the TOXIC share? Same 20 comments as sweep_values.yaml. 13 settings x 20 comments x 10 answers.
+#   scripts/shell/submit_vllm.sh --config configs/llama3_8b/sweep_univ_indiv.yaml [--dry-run]
+#   python scripts/plots/plot_toxicity_cdf.py --data <data> --sample data/processed/civil-comments/consensus_n2000_train/sample.csv
+
+model: meta-llama/Meta-Llama-3-8B-Instruct
+sample: data/processed/civil-comments/consensus_n2000_train/sample.csv
+data: data/processed/civil-comments/consensus_n2000_train/sweep_univ_indiv_llama3_8b_l10-25
+ids: [5669597, 5489114, 5084533, 6169124, 1020495, 5409022, 865776, 5759499, 5482502, 454416,   # 4 per consensus
+      5051048, 287848, 400898, 671565, 744738, 828057, 5886419, 5112880, 5149165, 5644295]          # band, seed 0
+
+# What to ask (see profile_signal.py)
+single_values: true
+conditions: [none]                         # only the no-value prompt: any change comes from the activation steering
+samples: 10                                # answers per comment and condition
+reasoning_effort: none                     # Llama 3 does not reason before answering
+workers: 64                                # requests in flight = vLLM --max-num-seqs
+checkpoint_every: 100
+# Broken settings should show up, not be retried away: one try per call
+max_tokens: 512
+attempts: 1
+passes: 1
+
+steering:
+  vectors: data/processed/steering_vectors/Meta-Llama-3-8B-Instruct
+  layers: "10-25"
+  values: [universalism, individualism]
+  alphas: [0, -0.2, 0.2, -0.35, 0.35, -0.5, 0.5]   # 0.5: past where toxicity broke (~0.45)
+
+# Cluster
+job_size: 500                              # 20 comments: one job
+max_nodes: 1
+time: "02:00:00"
+partition: gpu_test
+account: protopapas_lab
+scratch: /n/netscratch/protopapas_lab/Lab/$USER

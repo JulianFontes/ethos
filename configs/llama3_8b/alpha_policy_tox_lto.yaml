@@ -1,0 +1,13 @@
+# Joint value-and-strength policy (MultiBellPolicy in src/ethos/alpha_policy.py) on the combined toxicity + long-term
+# orientation run: per comment, pi(v, alpha | x) = P(v | x) P(alpha | v, x).
+#   CONFIG=configs/llama3_8b/alpha_policy_tox_lto.yaml scripts/shell/run_alpha_policy.sh
+
+run: data/processed/civil-comments/consensus_n2000_train/steer_tox_lto_llama3_8b_l10-25_grid   # scores.csv (+ rationale_embeddings.parquet)
+out: data/experiments/civil-comments/05_activation_steering/alpha_policy_llama3_8b_consensus_n2000_tox_lto
+
+model: multibell   # a value (softmax) and its strength (bell curve per value)
+features: [text+rationale+prior]   # one policy per entry
+folds: 5           # cross-validation folds
+epochs: 300
+seed: 0
+baseline: toxicity # also train the single-value bell policy on toxicity's options alone (same features and folds)
